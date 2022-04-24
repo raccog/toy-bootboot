@@ -62,6 +62,7 @@ dependencies = [
 name = "toy-bootboot"
 version = "0.1.0"
 dependencies = [
+ "log",
  "uefi",
  "uefi-services",
 ]
