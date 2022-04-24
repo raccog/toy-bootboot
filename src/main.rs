@@ -5,7 +5,7 @@
 use core::str;
 use log::debug;
 use uefi::{
-    CString16,
+    {CStr16,CString16},
     prelude::*,
     proto::media::file::{FileMode,FileAttribute,File,RegularFile}
 };
@@ -52,14 +52,23 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     let mut text = unsafe { RegularFile::new(file) };
 
     let mut buf: [u8; 256] = [0; 256];
+    let mut buf2: [u16; 256] = [0; 256];
     let size = text.read(&mut buf)
         .expect("Could not read file");
     text.close();
     debug!("Size: {}", size);
-    let out = unsafe { str::from_utf8_unchecked(&buf) };
+
+    for i in 0..size {
+        if buf[i] == 10 {
+            continue
+        }
+        buf2[i] = buf[i] as u16;
+        debug!("{}", buf2[i]);
+    }
+    let out = CStr16::from_u16_with_nul(&buf2[0..size])
+        .expect("Could not convert to CStr16");
 
     debug!("{}", out);
-    //debug!("File size: {}", size);
 
     loop {}
 
