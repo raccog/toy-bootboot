@@ -11,4 +11,9 @@ if [[ ! -f .cache/DEBUGX64_OVMF.fd ]]; then
 fi
 
 # Run bootloader
-qemu-system-x86_64 -bios .cache/DEBUGX64_OVMF.fd -net none -drive file=fat:rw:target/sysroot,media=disk,format=raw -m 128M
+qemu-system-x86_64 \
+	-bios .cache/DEBUGX64_OVMF.fd \
+	-net none \
+	-drive file=fat:rw:target/sysroot,media=disk,format=raw \
+	-m 128M \
+	-serial stdio

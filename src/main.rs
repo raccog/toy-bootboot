@@ -2,12 +2,14 @@
 #![no_main]
 #![feature(abi_efiapi)]
 
-use core::str;
-use log::debug;
+mod environment;
+
+use environment::get_environment;
+
+use log::{debug,error};
 use uefi::{
-    {CStr16,CString16},
+    CStr16,
     prelude::*,
-    proto::media::file::{FileMode,FileAttribute,File,RegularFile}
 };
 
 #[cfg(debug_assertions)]
@@ -33,42 +35,21 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Print firmware info if in debug mode
     debug_firmware_info(&st);
 
-    // Boot table
-    let bt = st.boot_services();
-    // ESP file system
-    let fs = unsafe {
-        &mut *bt.get_image_file_system(image_handle)
-        .expect("Failed to get ESP")
-        .interface.get()
-    };
-    // Root directory on ESP
-    let mut root = fs.open_volume()
-        .expect("Failed to open root directory on ESP");
-    
-    // Test reading a file
-    let filename = CString16::try_from("test.txt").unwrap();
-    let file = root.open(&filename, FileMode::Read, FileAttribute::empty())
-        .expect("Could not open file 'test.txt'");
-    let mut text = unsafe { RegularFile::new(file) };
-
-    let mut buf: [u8; 256] = [0; 256];
-    let mut buf2: [u16; 256] = [0; 256];
-    let size = text.read(&mut buf)
-        .expect("Could not read file");
-    text.close();
-    debug!("Size: {}", size);
-
-    for i in 0..size {
-        if buf[i] == 10 {
-            continue
-        }
-        buf2[i] = buf[i] as u16;
-        debug!("{}", buf2[i]);
+    let mut env: [u8; 4096] = [0; 4096];
+    let size = get_environment(image_handle, &mut st, &mut env); 
+    if let Err(size) = size {
+        error!("Config file of size {} could not fit in a page", size);
+        return Status::BAD_BUFFER_SIZE;
     }
-    let out = CStr16::from_u16_with_nul(&buf2[0..size])
-        .expect("Could not convert to CStr16");
+    let size = size.unwrap();
 
-    debug!("{}", out);
+    let mut buf: [u16; 4096] = [0; 4096];
+    for i in 0..4096 {
+        buf[i] = env[i] as u16;
+    }
+
+    let out = CStr16::from_u16_with_nul(&buf[0..size]).expect("Could not convert environment to CStr16");
+    debug!("Environment:\n{}", out);
 
     loop {}
 
