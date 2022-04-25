@@ -8,11 +8,13 @@ For the official reference implementation, go [here](https://gitlab.com/bztsrc/b
 
 NOTE: Choose a filesystem driver for ramdisk
 
-1. Find config on ESP (EFI System Partition)
-2. Read and parse config settings
-3. Pass config environment to memory at linker-specified address
-1. Find ramdisk on ESP
-1. Read ramdisk data to memory (somewhere in first 16G)
+1. Find initrd on ESP
+1. Read initrd file to memory (somewhere in first 16G)
+1. Search for config on ESP (EFI System Partition)
+	2. If found, read config file to memory
+	3. If not found, search for config on initrd filesystem
+3. If config found, parse at linker-specified address
+4. If config not found, create empty environment
 1. If ramdisk is a filesystem (a single filesystem driver will be implemented for now), open kernel file using config path
 2. If ramdisk is not a filesystem, search for EFI header (fallback driver)
 3. Map kernel to static memory address (specified in config settings)
