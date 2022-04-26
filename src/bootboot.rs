@@ -172,7 +172,6 @@ impl<'a> BootbootMMap<'a> {
                 MemoryType::ACPI_RECLAIM | MemoryType::ACPI_NON_VOLATILE => 2,
                 MemoryType::MMIO | MemoryType::MMIO_PORT_SPACE => 3,
                 _ => 0
-
             };
         }
 
@@ -187,7 +186,7 @@ impl<'a> Display for BootbootMMap<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "BootbootMemoryMap:")?;
         for entry in self.mmap.iter() {
-            write!(f, "\nAddr: {:x?} Size: {:x?} Type: {}", entry.ptr, entry.size >> 4,
+            write!(f, "\nAddr: {:08x?} Size: {:08x?} Type: {}", entry.ptr, entry.size >> 4,
                    match entry.size & 0xf {
                        0 => "USED",
                        1 => "FREE",
