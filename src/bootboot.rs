@@ -1,10 +1,11 @@
 use core::{
     convert::TryFrom,
     ffi::c_void,
+    fmt::{Display,Formatter,self},
     ptr::NonNull,
 };
 use uefi::{
-    table::boot::{AllocateType,BootServices,MemoryType},
+    table::boot::{AllocateType,BootServices,MemoryType,MemoryDescriptor},
 };
 
 #[repr(C)]
@@ -143,7 +144,64 @@ struct BootbootHeaderImpl {
     mmap: MMapEntImpl
 }
 
+pub struct BootbootMMap<'a> {
+    size: u32,
+    mmap: &'a [MMapEntImpl]
+}
+
+impl<'a> BootbootMMap<'a> {
+    pub fn from_uefi_mmap<'b,MMap>(bt: &BootServices, uefi_mmap: MMap) -> Self
+    where
+        MMap: ExactSizeIterator<Item = &'b MemoryDescriptor> + Clone
+    {
+        let ptr = bt.allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, 1)
+            .expect("Could not allocate page for temporary memory map");
+        let entries = uefi_mmap.len();
+        let mmap = unsafe {
+            (ptr as *mut [MMapEntImpl; 248]).as_mut().unwrap()
+        };
+
+        for (i, desc) in uefi_mmap.enumerate() {
+            mmap[i].ptr = desc.phys_start;
+            mmap[i].size = (desc.page_count * 4096) << 4;
+            mmap[i].size |= match desc.ty {
+                MemoryType::RESERVED | MemoryType::RUNTIME_SERVICES_CODE | MemoryType::RUNTIME_SERVICES_DATA |
+                    MemoryType::UNUSABLE | MemoryType::PAL_CODE | MemoryType::PERSISTENT_MEMORY => 0,
+                MemoryType::LOADER_CODE | MemoryType::LOADER_DATA | MemoryType::BOOT_SERVICES_CODE |
+                    MemoryType::BOOT_SERVICES_DATA | MemoryType::CONVENTIONAL => 1,
+                MemoryType::ACPI_RECLAIM | MemoryType::ACPI_NON_VOLATILE => 2,
+                MemoryType::MMIO | MemoryType::MMIO_PORT_SPACE => 3,
+                _ => 0
+
+            };
+        }
+
+        Self {
+            size: (entries * 16) as u32,
+            mmap: &mmap[0..entries]
+        }
+    }
+}
+
+impl<'a> Display for BootbootMMap<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "BootbootMemoryMap:")?;
+        for entry in self.mmap.iter() {
+            write!(f, "\nAddr: {:x?} Size: {:x?} Type: {}", entry.ptr, entry.size >> 4,
+                   match entry.size & 0xf {
+                       0 => "USED",
+                       1 => "FREE",
+                       2 => "ACPI",
+                       3 => "MMIO",
+                       _ => "UNKNOWN"
+                   })?;
+        }
+        Ok(())
+    }
+}
+
 #[repr(C)]
+#[derive(Clone,Copy,Debug)]
 struct MMapEntImpl {
     ptr: u64,
     size: u64
