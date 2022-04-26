@@ -2,8 +2,10 @@
 #![no_main]
 #![feature(abi_efiapi)]
 
+mod bootboot;
 mod environment;
 
+use bootboot::BootbootHeader;
 use environment::get_environment;
 
 use log::{debug,error};
