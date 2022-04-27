@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(abi_efiapi)]
+#![feature(slice_take)]
 
 mod bootboot;
 mod environment;
@@ -75,7 +76,7 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
 
     // Convert UEFI memory map to BOOTBOOT memory map
     let mmap = BootbootMMap::from_uefi_mmap(bt, desc_iter);
-    debug!("MMap: {}", mmap);
+    debug!("{}", mmap);
 
     // Infinite loop to ensure UEFI is running this image
     loop {}

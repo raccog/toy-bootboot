@@ -169,17 +169,16 @@ struct BootbootHeaderImpl {
 /// A BOOTBOOT memory map.
 pub struct BootbootMMap<'a> {
     size: u32,
-    mmap: &'a [MMapEntImpl],
+    mmap: &'a mut [MMapEntImpl],
     is_sorted: bool
 }
 
 impl<'a> BootbootMMap<'a> {
     /// Converts a UEFI memory map to a BOOTBOOT memory map.
     ///
-    /// The memory map entries are also sorted and merged using [`sort`] and [`merge`].
+    /// The memory map entries are also sorted and merged using [`mergesort`].
     ///
-    /// [`sort`]: Self::sort
-    /// [`merge`]: Self::merge
+    /// [`mergesort`]: Self::mergesort
     ///
     /// # Note
     ///
@@ -215,43 +214,105 @@ impl<'a> BootbootMMap<'a> {
             };
         }
 
-        Self {
+        let mut mmap = Self {
             size: (entries * 16) as u32,
-            mmap: &mmap[0..entries],
+            mmap: &mut mmap[0..entries],
             is_sorted: false
-        }
+        };
+        mmap.mergesort();
+        mmap
     }
 
-    /// Merges sequential memory map entries that are of the same type.
-    ///
-    /// # Note
-    ///
-    /// The memory map should be sorted with [`sort`] before merging.
-    ///
-    /// [`sort`]: Self::sort
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the memory map has not yet been sorted.
-    pub fn merge(&mut self) -> Result<(), ()> {
-        // Return error if memory map entries are not sorted
-        if !self.is_sorted {
-            return Err(());
+    fn sort(mmap: &mut [MMapEntImpl], scratch: &mut [MMapEntImpl]) {
+        // Return if there are 0 or 1 memory map entries
+        if mmap.len() <= 1 {
+            return;
         }
 
-        Ok(())
+        // Split entries in two
+        let middle = mmap.len() / 2;
+        {
+            let left = &mut mmap[..middle];
+            let scratch = &mut scratch[..middle];
+            Self::sort(left, scratch);
+        }
+        {
+            let right = &mut mmap[middle..];
+            let scratch = &mut scratch[middle..];
+            Self::sort(right, scratch);
+        }
+        Self::merge(mmap, scratch);
     }
 
-    /// Sorts memory map entries by physical address.
+    fn merge(mmap: &mut [MMapEntImpl], scratch: &mut [MMapEntImpl]) {
+        let middle = mmap.len() / 2;
+        let end = mmap.len();
+        let mut left_idx = 0;
+        let mut right_idx = middle;
+        let mut scratch_idx = 0;
+
+        // Merge entries into scratch buffer
+        while left_idx < middle && right_idx < end {
+            if mmap[left_idx].ptr <= mmap[right_idx].ptr {
+                scratch[scratch_idx] = mmap[left_idx];
+                left_idx += 1;
+            } else {
+                scratch[scratch_idx] = mmap[right_idx];
+                right_idx += 1;
+            }
+            scratch_idx += 1;
+        }
+
+        // Merge remaining entries
+        if left_idx < middle {
+            scratch[scratch_idx..].clone_from_slice(&mmap[left_idx..middle]);
+        } else if right_idx < end {
+            scratch[scratch_idx..].clone_from_slice(&mmap[right_idx..]);
+        }
+
+        // Copy scratch buffer to original buffer
+        mmap.clone_from_slice(&scratch);
+    }
+
+    /// Sorts memory map entries by physical address and merges sequential entries
+    /// of the same memory type.
     ///
     /// Uses mergesort for a guaranteed time complexity of `O(n log n)`
-    pub fn sort(&mut self) {
+    pub fn mergesort(&mut self) {
         // Return if already sorted
         if self.is_sorted {
-            return
+            return;
         }
 
-        // TODO: Implement merge sort for physical addresses.
+        // Return if length is 0 or 1
+        if self.mmap.len() <= 1 {
+            return;
+        }
+
+        // Stack-allocated scratch buffer
+        let mut scratch: [MMapEntImpl; 248] = [ MMapEntImpl { ptr: 0, size: 0 }; 248];
+
+        // Begin recursive mergesort
+        Self::sort(self.mmap, &mut scratch[..self.mmap.len()]);
+
+        // Merge sequential entries of the same type
+        let mut scratch_idx = 0;
+        let mut mmap_idx = 0;
+        scratch[0] = self.mmap[0];
+        while mmap_idx < self.mmap.len() - 1 {
+            mmap_idx += 1;
+            if scratch[scratch_idx].memory_type() == self.mmap[mmap_idx].memory_type() {
+                scratch[scratch_idx].size += self.mmap[mmap_idx].size();
+                continue;
+            }
+            scratch_idx += 1;
+            scratch[scratch_idx] = self.mmap[mmap_idx];
+        }
+
+        // Copy merged entries and update size
+        let scratch_len = scratch_idx + 1;
+        self.mmap[..scratch_len].clone_from_slice(&scratch[..scratch_len]);
+        self.mmap = self.mmap.take_mut(..scratch_len).unwrap();
         
         self.is_sorted = true;
     }
@@ -259,14 +320,14 @@ impl<'a> BootbootMMap<'a> {
 
 impl<'a> Display for BootbootMMap<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "BootbootMemoryMap:")?;
+        write!(f, "BootbootMemoryMap (entries: {}):", self.mmap.len())?;
         for entry in self.mmap.iter() {
             write!(
                 f,
                 "\nAddr: {:08x?} Size: {:08x?} Type: {}",
                 entry.ptr,
-                entry.size >> 4,
-                match entry.size & 0xf {
+                entry.size(),
+                match entry.memory_type() {
                     0 => "USED",
                     1 => "FREE",
                     2 => "ACPI",
@@ -284,4 +345,16 @@ impl<'a> Display for BootbootMMap<'a> {
 struct MMapEntImpl {
     ptr: u64,
     size: u64,
+}
+
+impl MMapEntImpl {
+    /// Returns the type of memory map entry.
+    pub fn memory_type(&self) -> u8 {
+        (self.size & 0xf) as u8
+    }
+
+    /// Returns the size of the entry in bytes.
+    pub fn size(&self) -> u64 {
+        self.size >> 4
+    }
 }
