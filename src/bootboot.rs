@@ -170,10 +170,16 @@ struct BootbootHeaderImpl {
 pub struct BootbootMMap<'a> {
     size: u32,
     mmap: &'a [MMapEntImpl],
+    is_sorted: bool
 }
 
 impl<'a> BootbootMMap<'a> {
     /// Converts a UEFI memory map to a BOOTBOOT memory map.
+    ///
+    /// The memory map entries are also sorted and merged using [`sort`] and [`merge`].
+    ///
+    /// [`sort`]: Self::sort
+    /// [`merge`]: Self::merge
     ///
     /// # Note
     ///
@@ -212,7 +218,42 @@ impl<'a> BootbootMMap<'a> {
         Self {
             size: (entries * 16) as u32,
             mmap: &mmap[0..entries],
+            is_sorted: false
         }
+    }
+
+    /// Merges sequential memory map entries that are of the same type.
+    ///
+    /// # Note
+    ///
+    /// The memory map should be sorted with [`sort`] before merging.
+    ///
+    /// [`sort`]: Self::sort
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the memory map has not yet been sorted.
+    pub fn merge(&mut self) -> Result<(), ()> {
+        // Return error if memory map entries are not sorted
+        if !self.is_sorted {
+            return Err(());
+        }
+
+        Ok(())
+    }
+
+    /// Sorts memory map entries by physical address.
+    ///
+    /// Uses mergesort for a guaranteed time complexity of `O(n log n)`
+    pub fn sort(&mut self) {
+        // Return if already sorted
+        if self.is_sorted {
+            return
+        }
+
+        // TODO: Implement merge sort for physical addresses.
+        
+        self.is_sorted = true;
     }
 }
 
