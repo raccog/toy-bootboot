@@ -9,3 +9,10 @@ edition = "2021"
 log = "0.4.16"
 uefi = { version = "0.15.2", features = ["exts", "ignore-logger-errors"] }
 uefi-services = "0.12.1"
+uefi-macros = "0.6.1"
+
+# Get uefi crates from Github
+[patch.crates-io]
+uefi = { git = 'https://github.com/rust-osdev/uefi-rs.git', branch = 'main' }
+uefi-services = { git = 'https://github.com/rust-osdev/uefi-rs.git', branch = 'main' }
+uefi-macros = { git = 'https://github.com/rust-osdev/uefi-rs.git', branch = 'main' }

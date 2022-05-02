@@ -64,6 +64,7 @@ version = "0.1.0"
 dependencies = [
  "log",
  "uefi",
+ "uefi-macros",
  "uefi-services",
 ]
 
@@ -79,8 +80,7 @@ dependencies = [
 [[package]]
 name = "uefi"
 version = "0.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2043be244ce96de3ca04cdb64b29993928c2327121a8314e2a6f50379580cd7d"
+source = "git+https://github.com/rust-osdev/uefi-rs.git?branch=main#ea965490bc3da4f3b3641d22943258c1714efc9e"
 dependencies = [
  "bitflags",
  "log",
@@ -91,8 +91,7 @@ dependencies = [
 [[package]]
 name = "uefi-macros"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9271b66bf83671563773e54b178f1022ac2dab87dc197f80be51885a5e1a2f4"
+source = "git+https://github.com/rust-osdev/uefi-rs.git?branch=main#ea965490bc3da4f3b3641d22943258c1714efc9e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -102,8 +101,7 @@ dependencies = [
 [[package]]
 name = "uefi-services"
 version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "184cf782871dde6efd6335c0ed0dd7c48a7070f6ba73e1d148fc580a548dfe3d"
+source = "git+https://github.com/rust-osdev/uefi-rs.git?branch=main#ea965490bc3da4f3b3641d22943258c1714efc9e"
 dependencies = [
  "cfg-if",
  "log",
