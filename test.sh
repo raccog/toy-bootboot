@@ -4,6 +4,10 @@
 mkdir -p target/sysroot/EFI/BOOT
 cp target/x86_64-unknown-uefi/debug/toy-bootboot.efi target/sysroot/EFI/BOOT/BOOTX64.EFI
 
+# Create BOOTBOOT config
+mkdir -p target/sysroot/BOOTBOOT
+echo 'test="hello world"' > target/sysroot/BOOTBOOT/CONFIG
+
 # Download OVMF UEFI firmware
 if [[ ! -f .cache/DEBUGX64_OVMF.fd ]]; then
 	wget https://retrage.github.io/edk2-nightly/bin/DEBUGX64_OVMF.fd

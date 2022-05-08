@@ -6,7 +6,7 @@
 mod bootboot;
 mod environment;
 
-use bootboot::{BootbootHeader, BootbootMMap};
+use bootboot::{BootbootMMap};
 use environment::get_environment;
 
 use core::slice;
@@ -75,7 +75,7 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
         .expect("Failed to get UEFI memory map");
 
     // Convert UEFI memory map to BOOTBOOT memory map
-    let mmap = BootbootMMap::from_uefi_mmap(bt, desc_iter);
+    let mmap = BootbootMMap::from_uefi_mmap(desc_iter);
     debug!("{}", mmap);
 
     // Infinite loop to ensure UEFI is running this image

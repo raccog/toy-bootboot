@@ -1,4 +1,10 @@
+extern crate alloc;
+use alloc::{
+    string::ToString,
+    vec::Vec
+};
 use core::{
+    cmp::Ordering,
     convert::TryFrom,
     ffi::c_void,
     fmt::{self, Display, Formatter},
@@ -163,162 +169,53 @@ struct BootbootHeaderImpl {
     _unused1: u64,
     _unused2: u64,
     _unused3: u64,
-    mmap: MMapEntImpl,
+    mmap: MMapEntry,
 }
 
 /// A BOOTBOOT memory map.
-pub struct BootbootMMap<'a> {
-    size: u32,
-    mmap: &'a mut [MMapEntImpl],
-    is_sorted: bool
+pub struct BootbootMMap {
+    mmap: Vec<MMapEntry>,
 }
 
-impl<'a> BootbootMMap<'a> {
+impl BootbootMMap {
     /// Converts a UEFI memory map to a BOOTBOOT memory map.
     ///
-    /// The memory map entries are also sorted and merged using [`mergesort`].
-    ///
-    /// [`mergesort`]: Self::mergesort
-    ///
-    /// # Note
-    ///
-    /// Allocates a single page to store the BOOTBOOT memory map.
-    pub fn from_uefi_mmap<'b, MMap>(bt: &BootServices, uefi_mmap: MMap) -> Self
+    /// The memory map entries are also sorted and merged.
+    pub fn from_uefi_mmap<'b, MMap>(uefi_mmap: MMap) -> Self
     where
         MMap: ExactSizeIterator<Item = &'b MemoryDescriptor> + Clone,
     {
-        let ptr = bt
-            .allocate_pages(AllocateType::AnyPages, MemoryType::LOADER_DATA, 1)
-            .expect("Could not allocate page for temporary memory map");
-        let entries = uefi_mmap.len();
-        let mmap = unsafe { (ptr as *mut [MMapEntImpl; 248]).as_mut().unwrap() };
-
-        for (i, desc) in uefi_mmap.enumerate() {
-            mmap[i].ptr = desc.phys_start;
-            mmap[i].size = (desc.page_count * 4096) << 4;
-            mmap[i].size |= match desc.ty {
-                MemoryType::RESERVED
-                | MemoryType::RUNTIME_SERVICES_CODE
-                | MemoryType::RUNTIME_SERVICES_DATA
-                | MemoryType::UNUSABLE
-                | MemoryType::PAL_CODE
-                | MemoryType::PERSISTENT_MEMORY => 0,
-                MemoryType::LOADER_CODE
-                | MemoryType::LOADER_DATA
-                | MemoryType::BOOT_SERVICES_CODE
-                | MemoryType::BOOT_SERVICES_DATA
-                | MemoryType::CONVENTIONAL => 1,
-                MemoryType::ACPI_RECLAIM | MemoryType::ACPI_NON_VOLATILE => 2,
-                MemoryType::MMIO | MemoryType::MMIO_PORT_SPACE => 3,
-                _ => 0,
-            };
+        // Allocate and convert UEFI memory map
+        let mut mmap = Vec::with_capacity(248);
+        for desc in uefi_mmap {
+            // TODO: Return error if entry fails to be created
+            let entry = MMapEntry::new(desc.phys_start, desc.page_count * 4096, MMapEntryType::from_uefi(desc.ty)).unwrap();
+            mmap.push(entry);
         }
 
-        let mut mmap = Self {
-            size: (entries * 16) as u32,
-            mmap: &mut mmap[0..entries],
-            is_sorted: false
-        };
-        mmap.mergesort();
-        mmap
-    }
+        // Sort entries
+        mmap.sort();
 
-    fn sort(mmap: &mut [MMapEntImpl], scratch: &mut [MMapEntImpl]) {
-        // Return if there are 0 or 1 memory map entries
-        if mmap.len() <= 1 {
-            return;
-        }
-
-        // Split entries in two
-        let middle = mmap.len() / 2;
-        {
-            let left = &mut mmap[..middle];
-            let scratch = &mut scratch[..middle];
-            Self::sort(left, scratch);
-        }
-        {
-            let right = &mut mmap[middle..];
-            let scratch = &mut scratch[middle..];
-            Self::sort(right, scratch);
-        }
-        Self::merge(mmap, scratch);
-    }
-
-    fn merge(mmap: &mut [MMapEntImpl], scratch: &mut [MMapEntImpl]) {
-        let middle = mmap.len() / 2;
-        let end = mmap.len();
-        let mut left_idx = 0;
-        let mut right_idx = middle;
-        let mut scratch_idx = 0;
-
-        // Merge entries into scratch buffer
-        while left_idx < middle && right_idx < end {
-            if mmap[left_idx].ptr <= mmap[right_idx].ptr {
-                scratch[scratch_idx] = mmap[left_idx];
-                left_idx += 1;
+        // Merge entries
+        let mut merge_mmap = Vec::with_capacity(mmap.len());
+        merge_mmap.push(mmap[0]);
+        for entry in mmap[1..].iter() {
+            if let Some(merge_entry) = merge_mmap.last().unwrap().merge(entry) {
+                *merge_mmap.last_mut().unwrap() = merge_entry;
             } else {
-                scratch[scratch_idx] = mmap[right_idx];
-                right_idx += 1;
+                merge_mmap.push(*entry)
             }
-            scratch_idx += 1;
         }
+        mmap.clear();
+        mmap.extend_from_slice(&merge_mmap);
 
-        // Merge remaining entries
-        if left_idx < middle {
-            scratch[scratch_idx..].clone_from_slice(&mmap[left_idx..middle]);
-        } else if right_idx < end {
-            scratch[scratch_idx..].clone_from_slice(&mmap[right_idx..]);
+        Self {
+            mmap
         }
-
-        // Copy scratch buffer to original buffer
-        mmap.clone_from_slice(&scratch);
-    }
-
-    /// Sorts memory map entries by physical address and merges sequential entries
-    /// of the same memory type.
-    ///
-    /// Uses mergesort for a guaranteed time complexity of `O(n log n)`
-    pub fn mergesort(&mut self) {
-        // Return if already sorted
-        if self.is_sorted {
-            return;
-        }
-
-        // Return if length is 0 or 1
-        if self.mmap.len() <= 1 {
-            return;
-        }
-
-        // Stack-allocated scratch buffer
-        let mut scratch: [MMapEntImpl; 248] = [ MMapEntImpl { ptr: 0, size: 0 }; 248];
-
-        // Begin recursive mergesort
-        Self::sort(self.mmap, &mut scratch[..self.mmap.len()]);
-
-        // Merge sequential entries of the same type
-        let mut scratch_idx = 0;
-        let mut mmap_idx = 0;
-        scratch[0] = self.mmap[0];
-        while mmap_idx < self.mmap.len() - 1 {
-            mmap_idx += 1;
-            if scratch[scratch_idx].memory_type() == self.mmap[mmap_idx].memory_type() {
-                scratch[scratch_idx].size += self.mmap[mmap_idx].size();
-                continue;
-            }
-            scratch_idx += 1;
-            scratch[scratch_idx] = self.mmap[mmap_idx];
-        }
-
-        // Copy merged entries and update size
-        let scratch_len = scratch_idx + 1;
-        self.mmap[..scratch_len].clone_from_slice(&scratch[..scratch_len]);
-        self.mmap = self.mmap.take_mut(..scratch_len).unwrap();
-        
-        self.is_sorted = true;
     }
 }
 
-impl<'a> Display for BootbootMMap<'a> {
+impl Display for BootbootMMap {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "BootbootMemoryMap (entries: {}):", self.mmap.len())?;
         for entry in self.mmap.iter() {
@@ -327,34 +224,144 @@ impl<'a> Display for BootbootMMap<'a> {
                 "\nAddr: {:08x?} Size: {:08x?} Type: {}",
                 entry.ptr,
                 entry.size(),
-                match entry.memory_type() {
-                    0 => "USED",
-                    1 => "FREE",
-                    2 => "ACPI",
-                    3 => "MMIO",
-                    _ => "UNKNOWN",
-                }
+                entry.memory_type().to_string()
             )?;
         }
         Ok(())
     }
 }
 
+/// BOOTBOOT memory map entry type.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum MMapEntryType {
+    Used = 0,
+    Free = 1,
+    Acpi = 2,
+    Mmio = 3,
+    Unknown = 4
+}
+
+impl MMapEntryType {
+    /// Converts UEFI memory type to BOOTBOOT memory type.
+    pub fn from_uefi(ty: MemoryType) -> Self {
+       match ty {
+            MemoryType::RESERVED
+            | MemoryType::RUNTIME_SERVICES_CODE
+            | MemoryType::RUNTIME_SERVICES_DATA
+            | MemoryType::UNUSABLE
+            | MemoryType::PAL_CODE
+            | MemoryType::PERSISTENT_MEMORY => Self::Used,
+            MemoryType::LOADER_CODE
+            | MemoryType::LOADER_DATA
+            | MemoryType::BOOT_SERVICES_CODE
+            | MemoryType::BOOT_SERVICES_DATA
+            | MemoryType::CONVENTIONAL => Self::Free,
+            MemoryType::ACPI_RECLAIM | MemoryType::ACPI_NON_VOLATILE => Self::Acpi,
+            MemoryType::MMIO | MemoryType::MMIO_PORT_SPACE => Self::Mmio,
+            _ => Self::Unknown,
+        } 
+    }
+
+    /// Creates a memory type from u8 value.
+    pub fn new(ty: u8) -> Self {
+        match ty {
+            0 => Self::Used,
+            1 => Self::Free,
+            2 => Self::Acpi,
+            3 => Self::Mmio,
+            _ => Self::Unknown
+        }
+    }
+}
+
+impl<'a> Display for MMapEntryType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}",
+               match self {
+                   Self::Used => "USED",
+                   Self::Free => "FREE",
+                   Self::Acpi => "ACPI",
+                   Self::Mmio => "Mmio",
+                   _ => "UNKNOWN"
+               })?;
+        Ok(())
+    }
+}
+
+/// BOOTBOOT memory map entry.
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
-struct MMapEntImpl {
+#[derive(Clone, Copy, Debug, Eq)]
+struct MMapEntry {
     ptr: u64,
     size: u64,
 }
 
-impl MMapEntImpl {
+impl MMapEntry {
+    /// Adds `other`'s size to this entry's size;
+    pub fn add_size(&mut self, other: &Self) {
+        self.size += other.size() << 4;
+    }
+
+    /// Returns true if `other` is the entry directly after this one.
+    pub fn is_next(&self, other: &Self) -> bool {
+        self.ptr + self.size() == other.ptr && self.memory_type() == other.memory_type()
+    }
+
     /// Returns the type of memory map entry.
-    pub fn memory_type(&self) -> u8 {
-        (self.size & 0xf) as u8
+    pub fn memory_type(&self) -> MMapEntryType {
+        MMapEntryType::new((self.size & 0xf) as u8)
+    }
+
+    /// Returns this entry merged with `other` if they are sequential entries.
+    ///
+    /// Returns `None` if they are `other` is not an entry directly after this one.
+    pub fn merge(&self, other: &Self) -> Option<Self> {
+        if !self.is_next(other) {
+            return None;
+        }
+
+        let mut merged = self.clone();
+        merged.add_size(other);
+        Some(merged)
+    }
+
+    /// Create a new BOOTBOOT memory map entry.
+    ///
+    /// TODO: Return proper error
+    pub fn new(ptr: u64, size: u64, ty: MMapEntryType) -> Result<Self, ()> {
+        if size > u64::MAX >> 4 {
+            return Err(());
+        }
+
+        let size = (size << 4) | ty as u64;
+        
+        Ok(Self {
+            ptr,
+            size
+        })
     }
 
     /// Returns the size of the entry in bytes.
     pub fn size(&self) -> u64 {
         self.size >> 4
+    }
+}
+
+impl Ord for MMapEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.ptr.cmp(&other.ptr)
+    }
+}
+
+impl PartialOrd for MMapEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for MMapEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr == other.ptr
     }
 }
