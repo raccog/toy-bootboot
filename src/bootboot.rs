@@ -1,8 +1,5 @@
 extern crate alloc;
-use alloc::{
-    string::ToString,
-    vec::Vec
-};
+use alloc::{string::ToString, vec::Vec};
 use core::{
     cmp::Ordering,
     convert::TryFrom,
@@ -189,7 +186,12 @@ impl BootbootMMap {
         let mut mmap = Vec::with_capacity(248);
         for desc in uefi_mmap {
             // TODO: Return error if entry fails to be created
-            let entry = MMapEntry::new(desc.phys_start, desc.page_count * 4096, MMapEntryType::from_uefi(desc.ty)).unwrap();
+            let entry = MMapEntry::new(
+                desc.phys_start,
+                desc.page_count * 4096,
+                MMapEntryType::from_uefi(desc.ty),
+            )
+            .unwrap();
             mmap.push(entry);
         }
 
@@ -209,9 +211,7 @@ impl BootbootMMap {
         mmap.clear();
         mmap.extend_from_slice(&merge_mmap);
 
-        Self {
-            mmap
-        }
+        Self { mmap }
     }
 }
 
@@ -239,13 +239,13 @@ enum MMapEntryType {
     Free = 1,
     Acpi = 2,
     Mmio = 3,
-    Unknown = 4
+    Unknown = 4,
 }
 
 impl MMapEntryType {
     /// Converts UEFI memory type to BOOTBOOT memory type.
     pub fn from_uefi(ty: MemoryType) -> Self {
-       match ty {
+        match ty {
             MemoryType::RESERVED
             | MemoryType::RUNTIME_SERVICES_CODE
             | MemoryType::RUNTIME_SERVICES_DATA
@@ -260,7 +260,7 @@ impl MMapEntryType {
             MemoryType::ACPI_RECLAIM | MemoryType::ACPI_NON_VOLATILE => Self::Acpi,
             MemoryType::MMIO | MemoryType::MMIO_PORT_SPACE => Self::Mmio,
             _ => Self::Unknown,
-        } 
+        }
     }
 
     /// Creates a memory type from u8 value.
@@ -270,21 +270,24 @@ impl MMapEntryType {
             1 => Self::Free,
             2 => Self::Acpi,
             3 => Self::Mmio,
-            _ => Self::Unknown
+            _ => Self::Unknown,
         }
     }
 }
 
 impl<'a> Display for MMapEntryType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}",
-               match self {
-                   Self::Used => "USED",
-                   Self::Free => "FREE",
-                   Self::Acpi => "ACPI",
-                   Self::Mmio => "Mmio",
-                   _ => "UNKNOWN"
-               })?;
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Used => "USED",
+                Self::Free => "FREE",
+                Self::Acpi => "ACPI",
+                Self::Mmio => "Mmio",
+                _ => "UNKNOWN",
+            }
+        )?;
         Ok(())
     }
 }
@@ -335,11 +338,8 @@ impl MMapEntry {
         }
 
         let size = (size << 4) | ty as u64;
-        
-        Ok(Self {
-            ptr,
-            size
-        })
+
+        Ok(Self { ptr, size })
     }
 
     /// Returns the size of the entry in bytes.

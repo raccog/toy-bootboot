@@ -4,14 +4,21 @@
 #![feature(slice_take)]
 
 mod bootboot;
-mod environment;
+mod fs;
 
-use bootboot::{BootbootMMap};
-use environment::get_environment;
+extern crate alloc;
+
+use bootboot::BootbootMMap;
+use fs::read_to_string;
 
 use core::slice;
 use log::{debug, error};
-use uefi::{prelude::*, table::boot::MemoryType, CStr16};
+use uefi::{
+    prelude::*,
+    proto::media::file::{Directory, File, FileAttribute, FileMode, RegularFile},
+    table::boot::MemoryType,
+    CStr16, CString16,
+};
 
 #[entry]
 fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
@@ -39,8 +46,41 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
         );
     }
 
+    // Boot table
+    let bt = st.boot_services();
+    // ESP file system
+    let fs = bt
+        .get_image_file_system(image_handle)
+        .expect("Failed to get ESP");
+    let fs = unsafe { &mut *fs.interface.get() };
+    // Root directory on ESP
+    let mut root = fs
+        .open_volume()
+        .expect("Failed to open root directory on ESP");
+    // BOOTBOOT directory
+    let dirname = CString16::try_from("BOOTBOOT").unwrap();
+    let dir = root
+        .open(&dirname, FileMode::Read, FileAttribute::DIRECTORY)
+        .expect("Could not open BOOTBOOT directory");
+    let mut dir = unsafe { Directory::new(dir) };
+
+    // CONFIG file
+    let filename = CString16::try_from("CONFIG").unwrap();
+    let file = dir
+        .open(&filename, FileMode::Read, FileAttribute::empty())
+        .expect("Could not open BOOTBOOT/CONFIG file");
+    let mut file = unsafe { RegularFile::new(file) };
+
+    // Read config file to vector
+    let config_raw = read_to_string(&mut file).expect("Could not read BOOTBOOT/CONFIG");
+
+    // CONFIG file close
+    file.close();
+
+    debug!("Environment raw: \n{}", config_raw);
+
     // Read BOOTBOOT/CONFIG to a page of memory
-    let mut env: [u8; 4096] = [0; 4096];
+    /*let mut env: [u8; 4096] = [0; 4096];
     let size = get_environment(image_handle, &mut st, &mut env);
     if let Err(size) = size {
         error!("Config file of size {} could not fit in a page", size);
@@ -59,7 +99,7 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
         let out = CStr16::from_u16_with_nul(&buf[0..size])
             .expect("Could not convert environment to CStr16");
         debug!("Environment:\n{}", out);
-    }
+    }*/
 
     // Get memory map from UEFI
     let bt = st.boot_services();
