@@ -3,12 +3,12 @@ use alloc::string::String;
 #[derive(Clone, Copy, Debug)]
 pub enum ParseError {
     IncompleteComment,
-    TooLarge
+    TooLarge,
 }
 
 /// Bootboot environment
 pub struct Environment {
-    pub env: String
+    pub env: String,
 }
 
 impl Environment {
@@ -20,7 +20,7 @@ impl Environment {
         let mut chars = raw_env.chars();
         let mut is_start = true;
 
-        loop{
+        loop {
             // Get next char from input string
             let c = chars.next();
             // Check for end of input string
@@ -73,10 +73,10 @@ impl Environment {
                 match c {
                     '/' => {
                         single_comment = true;
-                    },
+                    }
                     '*' => {
                         multi_comment = true;
-                    },
+                    }
                     _ => {
                         // Push chars if not start of comment
                         env.push('/');

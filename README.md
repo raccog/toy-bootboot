@@ -8,7 +8,6 @@ For the official reference implementation, go [here](https://gitlab.com/bztsrc/b
 
 NOTE: Choose a filesystem driver for ramdisk
 
-1. Find initrd on ESP
 1. Read initrd file to memory (somewhere in first 16G)
 1. Search for config on ESP (EFI System Partition)
 	2. If found, read config file to memory

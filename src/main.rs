@@ -8,18 +8,15 @@ mod fs;
 
 extern crate alloc;
 
-use bootboot::{
-    BootbootMMap,
-    Environment
-};
-use fs::{open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string};
+use bootboot::{BootbootMMap, Environment, Initrd};
+use fs::{open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string, read_to_vec};
 
 use alloc::fmt::Write;
 use core::slice;
 use log::{debug, error};
 use uefi::{
     prelude::*,
-    proto::media::file::{File, FileAttribute, FileMode},
+    proto::media::file::{Directory, File, FileAttribute, FileMode, RegularFile},
     table::boot::MemoryType,
 };
 
@@ -40,6 +37,16 @@ fn debug_info(st: &SystemTable<Boot>) {
         uefi_revision.major(),
         uefi_revision.minor()
     );
+}
+
+fn get_initrd(dir: &mut Directory) -> RegularFile {
+    // Check 'BOOTBOOT/INITRD'
+    if let Ok(file) = open_file(dir, "INITRD", FileMode::Read, FileAttribute::empty()) {
+        return file;
+    }
+
+    // Check 'BOOTBOOT/X86_64'
+    open_file_or_panic(dir, "X86_64", FileMode::Read, FileAttribute::empty())
 }
 
 #[entry]
@@ -70,7 +77,18 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     let mut dir = open_dir_or_panic(&mut root, "BOOTBOOT");
 
     //------------------------
-    // Step 3:
+    // Step 1:
+    // Read initrd file to memory
+    //------------------------
+
+    // INITRD file
+    let mut initrd_file = get_initrd(&mut dir);
+
+    // Read initrd
+    let initrd = Initrd::new(read_to_vec(&mut initrd_file).expect("Could not read initrd file"));
+
+    //------------------------
+    // Step 2:
     // Search for config file
     //------------------------
 
@@ -78,7 +96,7 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     let mut file = open_file_or_panic(&mut dir, "CONFIG", FileMode::Read, FileAttribute::empty());
 
     //-----------------------------
-    // Step 4:
+    // Step 3:
     // Create BOOTBOOT environment
     //-----------------------------
 
