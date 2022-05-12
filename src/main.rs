@@ -9,7 +9,7 @@ mod fs;
 extern crate alloc;
 
 use bootboot::BootbootMMap;
-use fs::read_to_string;
+use fs::{open_dir, open_file, open_dir_or_panic, open_file_or_panic, read_to_string};
 
 use core::slice;
 use log::{debug, error};
@@ -20,6 +20,25 @@ use uefi::{
     CStr16, CString16,
 };
 
+fn debug_info(st: &SystemTable<Boot>) {
+    // Print firmware info
+    let fw_revision = st.firmware_revision();
+    let uefi_revision = st.uefi_revision();
+
+    debug!("UEFI firmware information:");
+    debug!("Vendor = {}", st.firmware_vendor());
+    debug!(
+        "Firmware Revision = {}.{}",
+        fw_revision.major(),
+        fw_revision.minor()
+    );
+    debug!(
+        "UEFI Revision = {}.{}",
+        uefi_revision.major(),
+        uefi_revision.minor()
+    );
+}
+
 #[entry]
 fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut st).unwrap();
@@ -27,49 +46,38 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Log debug statements if built in debug mode
     if cfg!(debug_assertions) {
         log::set_max_level(log::LevelFilter::Debug);
-
-        // Print firmware info
-        let fw_revision = st.firmware_revision();
-        let uefi_revision = st.uefi_revision();
-
-        debug!("UEFI firmware information:");
-        debug!("Vendor = {}", st.firmware_vendor());
-        debug!(
-            "Firmware Revision = {}.{}",
-            fw_revision.major(),
-            fw_revision.minor()
-        );
-        debug!(
-            "UEFI Revision = {}.{}",
-            uefi_revision.major(),
-            uefi_revision.minor()
-        );
+    
+        debug_info(&st);
     }
 
-    // Boot table
     let bt = st.boot_services();
-    // ESP file system
+
+    // Get root directory of ESP
+    // Panic if failed
     let fs = bt
         .get_image_file_system(image_handle)
-        .expect("Failed to get ESP");
+        .expect("Failed to get EFI boot partition");
     let fs = unsafe { &mut *fs.interface.get() };
-    // Root directory on ESP
     let mut root = fs
         .open_volume()
-        .expect("Failed to open root directory on ESP");
-    // BOOTBOOT directory
-    let dirname = CString16::try_from("BOOTBOOT").unwrap();
-    let dir = root
-        .open(&dirname, FileMode::Read, FileAttribute::DIRECTORY)
-        .expect("Could not open BOOTBOOT directory");
-    let mut dir = unsafe { Directory::new(dir) };
+        .expect("Failed to open root directory on boot partition");
 
+    // Check for BOOTBOOT directory
+    // Panic if not found
+    let mut dir = open_dir_or_panic(&mut root, "BOOTBOOT");
+
+    //------------------------
+    // Step 3:
+    // Search for config file
+    //------------------------
+    
     // CONFIG file
-    let filename = CString16::try_from("CONFIG").unwrap();
-    let file = dir
-        .open(&filename, FileMode::Read, FileAttribute::empty())
-        .expect("Could not open BOOTBOOT/CONFIG file");
-    let mut file = unsafe { RegularFile::new(file) };
+    let mut file = open_file_or_panic(&mut dir, "CONFIG", FileMode::Read, FileAttribute::empty());
+
+    //-----------------------------
+    // Step 4:
+    // Create BOOTBOOT environment
+    //-----------------------------
 
     // Read config file to vector
     let config_raw = read_to_string(&mut file).expect("Could not read BOOTBOOT/CONFIG");

@@ -13,8 +13,9 @@ NOTE: Choose a filesystem driver for ramdisk
 1. Search for config on ESP (EFI System Partition)
 	2. If found, read config file to memory
 	3. If not found, search for config on initrd filesystem
-3. If config found, parse at linker-specified address
-4. If config not found, create empty environment
+4. Create BOOTBOOT environment
+	3. If config found, parse at linker-specified address
+	4. If config not found, create empty environment
 1. If ramdisk is a filesystem (a single filesystem driver will be implemented for now), open kernel file using config path
 2. If ramdisk is not a filesystem, search for EFI header (fallback driver)
 3. Map kernel to static memory address (specified in config settings)
