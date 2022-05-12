@@ -9,15 +9,14 @@ mod fs;
 extern crate alloc;
 
 use bootboot::BootbootMMap;
-use fs::{open_dir, open_file, open_dir_or_panic, open_file_or_panic, read_to_string};
+use fs::{open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string};
 
 use core::slice;
 use log::{debug, error};
 use uefi::{
     prelude::*,
-    proto::media::file::{Directory, File, FileAttribute, FileMode, RegularFile},
+    proto::media::file::{File, FileAttribute, FileMode},
     table::boot::MemoryType,
-    CStr16, CString16,
 };
 
 fn debug_info(st: &SystemTable<Boot>) {
@@ -46,7 +45,7 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Log debug statements if built in debug mode
     if cfg!(debug_assertions) {
         log::set_max_level(log::LevelFilter::Debug);
-    
+
         debug_info(&st);
     }
 
@@ -70,7 +69,7 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Step 3:
     // Search for config file
     //------------------------
-    
+
     // CONFIG file
     let mut file = open_file_or_panic(&mut dir, "CONFIG", FileMode::Read, FileAttribute::empty());
 

@@ -1,9 +1,8 @@
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use uefi::{
-    CString16,
     prelude::Status,
     proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMode, RegularFile},
-    Error as UefiError, Result as UefiResult,
+    CString16, Error as UefiError, Result as UefiResult,
 };
 
 /// Opens a subdirectory in the `root` directory.
@@ -14,7 +13,12 @@ pub fn open_dir(root: &mut Directory, dirname: &str) -> UefiResult<Directory> {
 }
 
 /// Opens a file in the `root` directory.
-pub fn open_file(root: &mut Directory, filename: &str, mode: FileMode, attribute: FileAttribute) -> UefiResult<RegularFile> {
+pub fn open_file(
+    root: &mut Directory,
+    filename: &str,
+    mode: FileMode,
+    attribute: FileAttribute,
+) -> UefiResult<RegularFile> {
     let filename = CString16::try_from(filename).unwrap();
     root.open(&filename, mode, attribute)
         .map(|file| unsafe { RegularFile::new(file) })
@@ -39,7 +43,12 @@ pub fn open_dir_or_panic(root: &mut Directory, dirname: &str) -> Directory {
 /// # Panic
 ///
 /// Panics if this file cannot be opened.
-pub fn open_file_or_panic(root: &mut Directory, filename: &str, mode: FileMode, attribute: FileAttribute) -> RegularFile {
+pub fn open_file_or_panic(
+    root: &mut Directory,
+    filename: &str,
+    mode: FileMode,
+    attribute: FileAttribute,
+) -> RegularFile {
     let filename = CString16::try_from(filename).unwrap();
     let file = root
         .open(&filename, mode, attribute)
