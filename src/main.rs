@@ -8,9 +8,13 @@ mod fs;
 
 extern crate alloc;
 
-use bootboot::BootbootMMap;
+use bootboot::{
+    BootbootMMap,
+    Environment
+};
 use fs::{open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string};
 
+use alloc::fmt::Write;
 use core::slice;
 use log::{debug, error};
 use uefi::{
@@ -85,6 +89,11 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     file.close();
 
     debug!("Environment raw: \n{}", config_raw);
+
+    let env = Environment::parse(&config_raw)
+        .unwrap_or_else(|err| panic!("Could not parse config file with error: {:?}", err));
+
+    debug!("Environment: \n{}", env.env);
 
     // Read BOOTBOOT/CONFIG to a page of memory
     /*let mut env: [u8; 4096] = [0; 4096];

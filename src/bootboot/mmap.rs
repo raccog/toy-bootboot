@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use alloc::{string::ToString, vec::Vec};
 use core::{
     cmp::Ordering,
