@@ -3,15 +3,21 @@
 #![feature(abi_efiapi)]
 #![feature(slice_take)]
 
-mod bootboot;
-mod fs;
-
 extern crate alloc;
 
-use bootboot::{BootbootMMap, Environment, Initrd};
-use fs::{open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string, read_to_vec};
+mod environment;
+mod framebuffer;
+mod fs;
+mod header;
+mod initrd;
+mod mmap;
 
-use alloc::fmt::Write;
+pub use environment::Environment;
+pub use framebuffer::Framebuffer;
+pub use initrd::Initrd;
+pub use mmap::BootbootMMap;
+pub use fs::{open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string, read_to_vec};
+
 use core::slice;
 use log::{debug, error};
 use uefi::{
@@ -87,6 +93,9 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Read initrd
     let initrd = Initrd::new(read_to_vec(&mut initrd_file).expect("Could not read initrd file"));
 
+    let file = initrd.read_file("test.txt");
+    debug!("{}", core::str::from_utf8(file.unwrap()).unwrap());
+
     //------------------------
     // Step 2:
     // Search for config file
@@ -113,28 +122,6 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
 
     debug!("Environment: \n{}", env.env);
 
-    // Read BOOTBOOT/CONFIG to a page of memory
-    /*let mut env: [u8; 4096] = [0; 4096];
-    let size = get_environment(image_handle, &mut st, &mut env);
-    if let Err(size) = size {
-        error!("Config file of size {} could not fit in a page", size);
-        return Status::BAD_BUFFER_SIZE;
-    }
-    let size = size.unwrap();
-
-    // Convert environment to unicode for debug print
-    if cfg!(debug_assertions) {
-        let mut buf: [u16; 4096] = [0; 4096];
-        for i in 0..4096 {
-            buf[i] = env[i] as u16;
-        }
-
-        // Debug print environment
-        let out = CStr16::from_u16_with_nul(&buf[0..size])
-            .expect("Could not convert environment to CStr16");
-        debug!("Environment:\n{}", out);
-    }*/
-
     // Get memory map from UEFI
     let bt = st.boot_services();
     let mmap_size = bt.memory_map_size();
@@ -152,7 +139,6 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     let mmap = BootbootMMap::from_uefi_mmap(desc_iter);
     debug!("{}", mmap);
 
-    // Infinite loop to ensure UEFI is running this image
     loop {}
 
     Status::SUCCESS

@@ -14,7 +14,6 @@ pub struct Environment {
 impl Environment {
     pub fn parse(raw_env: &String) -> Result<Self, ParseError> {
         let mut env = String::with_capacity(4096);
-        let mut i: usize = 0;
         let mut single_comment = false;
         let mut multi_comment = false;
         let mut chars = raw_env.chars();

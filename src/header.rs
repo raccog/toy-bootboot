@@ -1,4 +1,4 @@
-use crate::bootboot::{Framebuffer, Initrd};
+use crate::{Framebuffer, Initrd};
 
 /// BOOTBOOT loader type
 #[repr(u8)]
