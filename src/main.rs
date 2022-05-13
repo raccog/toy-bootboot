@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(abi_efiapi)]
+#![feature(iter_advance_by)]
 #![feature(slice_take)]
 
 extern crate alloc;
@@ -18,7 +19,10 @@ pub use initrd::Initrd;
 pub use mmap::BootbootMMap;
 pub use fs::{open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string, read_to_vec};
 
-use core::slice;
+use core::{
+    slice,
+    str::FromStr
+};
 use log::{debug, error};
 use uefi::{
     prelude::*,
@@ -93,6 +97,8 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Read initrd
     let initrd = Initrd::new(read_to_vec(&mut initrd_file).expect("Could not read initrd file"));
 
+    initrd_file.close();
+
     let file = initrd.read_file("test.txt");
     debug!("{}", core::str::from_utf8(file.unwrap()).unwrap());
 
@@ -117,10 +123,14 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
 
     debug!("Environment raw: \n{}", config_raw);
 
-    let env = Environment::parse(&config_raw)
-        .unwrap_or_else(|err| panic!("Could not parse config file with error: {:?}", err));
+    let env = Environment::from_str(&config_raw)
+        .expect("Could not parse config file");
+    debug!("Screen size: {} x {}", env.screen.0, env.screen.1);
 
-    debug!("Environment: \n{}", env.env);
+    //let env = Environment::parse(&config_raw)
+    //    .unwrap_or_else(|err| panic!("Could not parse config file with error: {:?}", err));
+
+    //debug!("Environment: \n{}", env.env);
 
     // Get memory map from UEFI
     let bt = st.boot_services();

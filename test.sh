@@ -8,6 +8,8 @@ cp target/x86_64-unknown-uefi/debug/toy-bootboot.efi target/sysroot/EFI/BOOT/BOO
 mkdir -p target/sysroot/BOOTBOOT
 echo '/* comment1 */
 // comment2
+screen=1920x1080 // full HD screen=1000x1000
+/* screen=1000x1000 */
 test="hello world"' > target/sysroot/BOOTBOOT/CONFIG
 
 # Download OVMF UEFI firmware
