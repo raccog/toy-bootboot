@@ -6,11 +6,7 @@ cp target/x86_64-unknown-uefi/debug/toy-bootboot.efi target/sysroot/EFI/BOOT/BOO
 
 # Create BOOTBOOT config
 mkdir -p target/sysroot/BOOTBOOT
-echo '/* comment1 */
-// comment2
-screen=1920x1080 // full HD screen=1000x1000
-/* screen=1000x1000 */
-test="hello world"' > target/sysroot/BOOTBOOT/CONFIG
+cp test/CONFIG target/sysroot/BOOTBOOT
 
 # Download OVMF UEFI firmware
 if [[ ! -f .cache/DEBUGX64_OVMF.fd ]]; then

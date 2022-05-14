@@ -100,7 +100,6 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     initrd_file.close();
 
     let file = initrd.read_file("test.txt");
-    debug!("{}", core::str::from_utf8(file.unwrap()).unwrap());
 
     //------------------------
     // Step 2:
@@ -121,11 +120,11 @@ fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // CONFIG file close
     file.close();
 
-    debug!("Environment raw: \n{}", config_raw);
-
     let env = Environment::from_str(&config_raw)
         .expect("Could not parse config file");
     debug!("Screen size: {} x {}", env.screen.0, env.screen.1);
+    debug!("Kernel name: {}", env.kernel);
+    debug!("SMP: {}", !env.no_smp);
 
     //let env = Environment::parse(&config_raw)
     //    .unwrap_or_else(|err| panic!("Could not parse config file with error: {:?}", err));

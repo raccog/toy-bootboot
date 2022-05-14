@@ -9,7 +9,6 @@ const ENVIRONMENT_MAX_LEN: usize = 4095;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ParseError {
-    InvalidScreen,
     TooLarge,
 }
 
@@ -17,6 +16,8 @@ pub enum ParseError {
 pub struct Environment {
     pub env: String,
     pub screen: (usize, usize),
+    pub kernel: String,
+    pub no_smp: bool,
 }
 
 impl FromStr for Environment {
@@ -31,7 +32,9 @@ impl FromStr for Environment {
         // Parse environment
         let env = String::from(s);
         let mut i: usize = 0;
-        let mut screen_size: (usize, usize) = (1024, 768);  // default screen size
+        let mut screen: (usize, usize) = (1024, 768);  // default screen size
+        let mut kernel_filename = "sys/core";
+        let mut no_smp = false;
         loop {
             // Increment unless at start
             // This is done at the beginning of the loop so that it does not need to be put before
@@ -91,31 +94,31 @@ impl FromStr for Environment {
                 i += screen_key.len();
                 let width_offset = env[i..].find('x');
                 if width_offset.is_none() {
-                    return Err(ParseError::InvalidScreen);
+                    continue;
                 }
                 let width_offset = width_offset.unwrap();
 
                 let width = env[i..i + width_offset].parse::<usize>();
                 if width.is_err() {
-                    return Err(ParseError::InvalidScreen);
+                    continue;
                 }
                 let width = width.unwrap();
 
                 i += width_offset + 1;
                 let height_offset = env[i..].find(char::is_whitespace);
                 if height_offset.is_none() {
-                    return Err(ParseError::InvalidScreen);
+                    continue;
                 }
                 let height_offset = height_offset.unwrap();
 
                 let height = env[i..i + height_offset].parse::<usize>();
                 if height.is_err() {
-                    return Err(ParseError::InvalidScreen);
+                    continue;
                 }
                 let height = height.unwrap();
                 i += height_offset;
 
-                screen_size = (width, height);
+                screen = (width, height);
 
                 while i < env.len() {
                     if env[i..].starts_with('\n') {
@@ -125,8 +128,38 @@ impl FromStr for Environment {
                 }
                 continue;
             }
+
+            // Get kernel filename
+            let kernel_key = "kernel=";
+            if env[i..].starts_with(kernel_key) {
+                i += kernel_key.len();
+                if i >= env.len() {
+                    continue;
+                }
+                let mut j = i;
+                while j < env.len() {
+                    if env[j..].starts_with(char::is_whitespace) {
+                        break;
+                    }
+                    j += 1;
+                }
+                if j - i >= 1 {
+                    kernel_filename = &env[i..j];
+                }
+                i = j;
+                continue;
+            }
+
+            // Check for smp disable
+            let smp_disable_key = "nosmp=1";
+            if env[i..].starts_with(smp_disable_key) {
+                i += smp_disable_key.len();
+                no_smp = true;
+            }
         }
 
-        Ok(Environment { env, screen: screen_size })
+        let mut kernel = String::with_capacity(kernel_filename.as_bytes().len());
+        kernel.push_str(kernel_filename);
+        Ok(Environment { env, screen, kernel, no_smp })
     }
 }
