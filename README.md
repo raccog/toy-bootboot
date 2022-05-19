@@ -11,7 +11,7 @@ If you want a non-experimental boot loader implementing the BOOTBOOT protocol, u
 
 ### Supported File Systems
 
-Currently, [ustar](https://en.wikipedia.org/wiki/Tar_(computing\)) (commonly known as tar) is the only supported file system for initrd.
+Currently, [ustar](https://en.wikipedia.org/wiki/Tar_(computing)) (commonly known as tar) is the only supported file system for initrd.
 
 ### Boot Process
 
