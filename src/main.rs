@@ -8,7 +8,7 @@
 //! It is a work in progress and an experimental project.
 //! My main goal is to see what advantages and disadvantages there are in using Rust to make
 //! freestanding programs; both in safety and in abstractions.
-//! 
+//!
 //! If you want a non-experimental boot loader implementing the BOOTBOOT protocol, use the
 //! [official reference implementation](https://gitlab.com/bztsrc/bootboot).
 //!
@@ -47,15 +47,17 @@ mod mmap;
 
 pub use environment::Environment;
 pub use framebuffer::Framebuffer;
+pub use fs::{
+    open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string, read_to_vec,
+};
 pub use initrd::Initrd;
 pub use mmap::BootbootMMap;
-pub use fs::{open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string, read_to_vec};
 
 use core::{
     slice,
     str::{self, FromStr},
 };
-use log::{debug, error};
+use log::debug;
 use uefi::{
     prelude::*,
     proto::media::file::{Directory, File, FileAttribute, FileMode, RegularFile},
@@ -103,12 +105,10 @@ fn get_initrd_file(bootdir: &mut Directory) -> UefiResult<RegularFile> {
 pub fn get_initrd(bootdir: &mut Directory) -> Initrd {
     // Initrd file
     const INITRD_ERR: &str = "Initrd not found";
-    let mut initrd_file = get_initrd_file(bootdir)
-        .expect(INITRD_ERR);
+    let mut initrd_file = get_initrd_file(bootdir).expect(INITRD_ERR);
 
     // Read initrd
-    let initrd = read_to_vec(&mut initrd_file)
-        .expect(INITRD_ERR);
+    let initrd = read_to_vec(&mut initrd_file).expect(INITRD_ERR);
     let initrd = Initrd::new(initrd);
 
     // Close initrd file
@@ -144,7 +144,7 @@ pub fn get_env(bootdir: &mut Directory, initrd: &Initrd) -> Environment {
     if let Some(env_raw) = initrd.read_file("sys/config") {
         // Convert config file to string
         if let Ok(env_raw) = str::from_utf8(env_raw) {
-            if let Ok(env) = Environment::from_str(&env_raw) {
+            if let Ok(env) = Environment::from_str(env_raw) {
                 debug!("Found sys/config in initrd");
                 return env;
             }
@@ -172,18 +172,13 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Get root directory of ESP
     // Panic if failed
     const ESP_ERR: &str = "No boot partition";
-    let fs = bt
-        .get_image_file_system(image_handle)
-        .expect(ESP_ERR);
+    let fs = bt.get_image_file_system(image_handle).expect(ESP_ERR);
     let fs = unsafe { &mut *fs.interface.get() };
-    let mut root = fs
-        .open_volume()
-        .expect(ESP_ERR);
+    let mut root = fs.open_volume().expect(ESP_ERR);
 
     // Check for BOOTBOOT directory
     // Panic if not found
-    let mut bootdir = open_dir(&mut root, "BOOTBOOT")
-        .expect(ESP_ERR);
+    let mut bootdir = open_dir(&mut root, "BOOTBOOT").expect(ESP_ERR);
 
     //------------------------
     // Step 1:
@@ -191,7 +186,7 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     //------------------------
 
     let initrd = get_initrd(&mut bootdir);
-    debug!("Read initrd of size: {} KiB", initrd.len() / 1024);
+    debug!("Found initrd of size: {} KiB", initrd.len() / 1024);
 
     //-----------------------------
     // Step 2:

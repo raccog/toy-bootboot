@@ -1,15 +1,17 @@
-use alloc::vec::Vec;
 use core::str::from_utf8;
-use log::debug;
 
 const BLOCK_SIZE: usize = 512;
 
-pub fn read_ustar<'a>(initrd: &'a Vec<u8>, filename: &str) -> Option<&'a [u8]> {
-    let mut initrd: &[u8] = &initrd[..];
+pub fn read_ustar<'a>(initrd: &'a [u8], filename: &str) -> Option<&'a [u8]> {
     const NAME_SIZE: usize = 100;
     const SIZE_OFFSET: usize = 124;
     const SIZE_SIZE: usize = 12;
     const FILE_OFFSET: usize = BLOCK_SIZE;
+    // Initrd is a mutable reference of a slice; meaning it can change the start and 
+    // end of a slice, but not modify the contents.
+    // This is utilized by moving the start point forward every file so that the next
+    // file's header is the start of the slice in the next loop iteration.
+    let mut initrd = initrd;
 
     while initrd.len() > BLOCK_SIZE {
         // Get file size octal string
@@ -58,7 +60,7 @@ fn pow(x: usize, n: usize) -> usize {
     }
 
     let mut result = x;
-    for i in 2..=n {
+    for _ in 2..=n {
         result *= x;
     }
     result

@@ -1,4 +1,4 @@
-use alloc::{string::ToString, vec::Vec};
+use alloc::vec::Vec;
 use core::{
     cmp::Ordering,
     fmt::{self, Display, Formatter},
@@ -60,7 +60,7 @@ impl Display for BootbootMMap {
                 "\nAddr: {:08x?} Size: {:08x?} Type: {}",
                 entry.ptr,
                 entry.size(),
-                entry.memory_type().to_string()
+                entry.memory_type()
             )?;
         }
         Ok(())
@@ -111,7 +111,7 @@ impl MMapEntryType {
     }
 }
 
-impl<'a> Display for MMapEntryType {
+impl Display for MMapEntryType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -160,7 +160,7 @@ impl MMapEntry {
             return None;
         }
 
-        let mut merged = self.clone();
+        let mut merged = *self;
         merged.add_size(other);
         Some(merged)
     }

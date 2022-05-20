@@ -1,7 +1,6 @@
 use alloc::string::{String, ToString};
 use core::{
-    iter::Peekable,
-    str::{Chars, FromStr}
+    str::FromStr,
 };
 
 // Since length does not include null terminator, max length is 4KiB - 1 or 4095 bytes
@@ -43,7 +42,7 @@ impl FromStr for Environment {
         // Parse environment
         let env = String::from(s);
         let mut i: usize = 0;
-        let mut screen: (usize, usize) = (1024, 768);  // default screen size
+        let mut screen: (usize, usize) = (1024, 768); // default screen size
         let mut kernel_filename = "sys/core";
         let mut no_smp = false;
         loop {
@@ -69,7 +68,7 @@ impl FromStr for Environment {
             }
 
             // Skip single-line comments
-            if env[i..].starts_with("//") || env[i..].starts_with("#") {
+            if env[i..].starts_with("//") || env[i..].starts_with('#') {
                 while i < env.len() {
                     i += 1;
                     if env[i..].starts_with('\n') {
@@ -89,13 +88,13 @@ impl FromStr for Environment {
                     }
                 }
                 continue;
-            } 
+            }
 
             // Ensure match is at start of line
             if i > 0 {
                 match env.chars().nth(i - 1).unwrap() {
-                    ' ' | '\t' | '\r' | '\n' => {},
-                    _ => continue
+                    ' ' | '\t' | '\r' | '\n' => {}
+                    _ => continue,
                 }
             }
 
@@ -171,6 +170,11 @@ impl FromStr for Environment {
 
         let mut kernel = String::with_capacity(kernel_filename.as_bytes().len());
         kernel.push_str(kernel_filename);
-        Ok(Environment { env, screen, kernel, no_smp })
+        Ok(Environment {
+            env,
+            screen,
+            kernel,
+            no_smp,
+        })
     }
 }

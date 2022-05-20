@@ -3,9 +3,9 @@ use crate::{Framebuffer, Initrd};
 /// BOOTBOOT loader type
 #[repr(u8)]
 pub enum LoaderType {
-    BIOS = 0,
-    UEFI = 1,
-    RPI = 2,
+    Bios = 0,
+    Uefi = 1,
+    Rpi = 2,
     Coreboot = 3,
 }
 
@@ -14,9 +14,9 @@ impl TryFrom<u8> for LoaderType {
 
     fn try_from(loader_type: u8) -> Result<Self, Self::Error> {
         match loader_type {
-            0 => Ok(Self::BIOS),
-            1 => Ok(Self::UEFI),
-            2 => Ok(Self::RPI),
+            0 => Ok(Self::Bios),
+            1 => Ok(Self::Uefi),
+            2 => Ok(Self::Rpi),
             3 => Ok(Self::Coreboot),
             _ => Err(()),
         }

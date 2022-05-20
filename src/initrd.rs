@@ -12,6 +12,10 @@ pub struct Initrd {
 }
 
 impl Initrd {
+    pub fn is_empty(&self) -> bool {
+        self.initrd.is_empty()
+    }
+
     pub fn len(&self) -> usize {
         self.initrd.len()
     }

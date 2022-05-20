@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log = "0.4.16"
-uefi = { version = "0.15.2", features = ["exts", "ignore-logger-errors"] }
-uefi-services = "0.12.1"
-uefi-macros = "0.6.1"
+log = "0.4.17"
+uefi = { version = "0.16.0", features = ["exts", "ignore-logger-errors"] }
+uefi-services = "0.13.0"
+uefi-macros = "0.7.0"
 
 # Get uefi crates from Github
 [patch.crates-io]
