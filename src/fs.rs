@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use uefi::{
-    prelude::Status,
+    prelude::{ResultExt, Status},
     proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMode, RegularFile},
     CString16, Error as UefiError, Result as UefiResult,
 };
@@ -68,7 +68,7 @@ pub fn read_to_vec(file: &mut RegularFile) -> UefiResult<Vec<u8>> {
     // Read file to buffer
     // Returns error if file cannot be read
     file.read(&mut buffer[..])
-        .map_err(|err| UefiError::new(err.status(), ()))?;
+        .discard_errdata()?;
 
     Ok(buffer)
 }

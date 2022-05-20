@@ -18,25 +18,22 @@ Currently, [ustar](https://en.wikipedia.org/wiki/Tar_(computing)) (commonly know
 The boot loading process is as follows:
 
 1. Read initrd file to memory
-1. Search for config on ESP (EFI System Partition)
-	1. If found, read config file to memory
-	1. If not found, search for config on initrd file system
-	2. If still not found, empty environment will be created
-1. Create BOOTBOOT environment
-	1. If config found, parse at linker-specified address
-	1. If config not found, create empty environment
+2. Get BOOTBOOT environment
+	1. Try to parse from `BOOTBOOT/CONFIG` on boot partition
+	2. If file not found, try to parse from `sys/config` on initrd
+	3. If still not found, default environment will be used
 2. Search for kernel image
-	1. If ramdisk is a file system, open kernel file using config path
-	1. If ramdisk is not a filesystem, search for EFI header (fallback driver)
-1. Initialize environment (ACPI, APIC, framebuffer, SMP, etc.)
-2. Get memory map
-1. Create BOOTBOOT header
-1. Map kernel to dynamic address (specified in environment variable)
-2. Map environment to static address (specified in source code)
-3. Map BOOTBOOT header to static address (specified in source code)
-1. Pass control to kernel entry point
+	1. If initrd is a file system, open kernel file using path from environment variable
+	2. If initrd is not a filesystem, search for EFI header (fallback driver)
+3. Initialize hardware (ACPI, APIC, framebuffer, SMP, etc.)
+4. Get memory map
+5. Create BOOTBOOT header
+6. Map kernel to dynamic address (specified in environment variable)
+7. Map environment to static address (specified in source code)
+8. Map BOOTBOOT header to static address (specified in source code)
+9. Pass control to kernel entry point
 
-## Initializing Environment
+## Initializing Hardware
 
 NOTE: This order may not be the order of execution when implemented.
 

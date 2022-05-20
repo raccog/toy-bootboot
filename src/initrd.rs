@@ -12,6 +12,10 @@ pub struct Initrd {
 }
 
 impl Initrd {
+    pub fn len(&self) -> usize {
+        self.initrd.len()
+    }
+
     pub fn new(initrd: Vec<u8>) -> Self {
         Self { initrd }
     }

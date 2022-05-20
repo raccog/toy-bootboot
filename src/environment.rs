@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use core::{
     iter::Peekable,
     str::{Chars, FromStr}
@@ -18,6 +18,17 @@ pub struct Environment {
     pub screen: (usize, usize),
     pub kernel: String,
     pub no_smp: bool,
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Environment {
+            env: "kernel=sys/core\nscreen=1024x768".to_string(),
+            screen: (1024, 768),
+            kernel: "sys/core".to_string(),
+            no_smp: false,
+        }
+    }
 }
 
 impl FromStr for Environment {
