@@ -20,5 +20,5 @@ qemu-system-x86_64 \
 	-net none \
 	-drive file=fat:rw:target/sysroot,media=disk,format=raw \
 	-m 128M \
-	-serial stdio
+	-serial stdio \
 	-no-reboot -no-shutdown
