@@ -48,7 +48,7 @@ mod mmap;
 pub use environment::Environment;
 pub use framebuffer::Framebuffer;
 pub use fs::{
-    open_dir, open_dir_or_panic, open_file, open_file_or_panic, read_to_string, read_to_vec,
+    open_dir, open_file, read_to_string, read_to_vec,
 };
 pub use initrd::Initrd;
 pub use mmap::BootbootMMap;

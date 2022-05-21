@@ -24,39 +24,6 @@ pub fn open_file(
         .map(|file| unsafe { RegularFile::new(file) })
 }
 
-/// Opens a subdirectory in the `root` directory.
-///
-/// # Panic
-///
-/// Panics if this directory cannot be opened.
-pub fn open_dir_or_panic(root: &mut Directory, dirname: &str) -> Directory {
-    let dirname = CString16::try_from(dirname).unwrap();
-    let dir = root
-        .open(&dirname, FileMode::Read, FileAttribute::DIRECTORY)
-        .unwrap_or_else(|_| panic!("Could not open directory named {}", dirname));
-
-    unsafe { Directory::new(dir) }
-}
-
-/// Opens a file in the `root` directory.
-///
-/// # Panic
-///
-/// Panics if this file cannot be opened.
-pub fn open_file_or_panic(
-    root: &mut Directory,
-    filename: &str,
-    mode: FileMode,
-    attribute: FileAttribute,
-) -> RegularFile {
-    let filename = CString16::try_from(filename).unwrap();
-    let file = root
-        .open(&filename, mode, attribute)
-        .unwrap_or_else(|_| panic!("Could not open file named {}", filename));
-
-    unsafe { RegularFile::new(file) }
-}
-
 /// Reads an open `file` into a dynamically allocated `Vec<u8>`.
 pub fn read_to_vec(file: &mut RegularFile) -> UefiResult<Vec<u8>> {
     // Get file size
