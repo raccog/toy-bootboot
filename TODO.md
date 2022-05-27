@@ -2,10 +2,9 @@
 
 ## Immediate
 
-### Environment
+### Running and Testing Bootloader
 
-* Read config from initrd as fallback for separate file
-* Create empty environment as final fallback
+* Create a binary `xtask` crate for running the bootloader and also running integration tests.
 
 ## Future
 

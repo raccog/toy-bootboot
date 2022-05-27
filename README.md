@@ -2,8 +2,7 @@
 
 This is a toy implementation of the BOOTBOOT protocol for x86_64 UEFI systems.
 
-It is a work in progress and an experimental project.
-My main goal is to see what advantages and disadvantages there are in using Rust to make freestanding programs; both in safety and in abstractions.
+It is a work in progress and an experimental project. My main goal is to see what advantages and disadvantages there are in using Rust to make freestanding programs; both in safety and in abstractions. I also want to see if cargo (and other built-in rust tooling) can integrate well with an osdev toolchain.
 
 If you want a non-experimental boot loader implementing the BOOTBOOT protocol, use the [official reference implementation](https://gitlab.com/bztsrc/bootboot).
 
