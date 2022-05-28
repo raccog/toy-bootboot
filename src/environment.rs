@@ -1,10 +1,10 @@
 use alloc::string::{String, ToString};
-use core::{
-    str::FromStr,
-};
+use core::str::FromStr;
 
 // Since length does not include null terminator, max length is 4KiB - 1 or 4095 bytes
 const ENVIRONMENT_MAX_LEN: usize = 4095;
+const SCREEN_MIN_WIDTH: usize = 640;
+const SCREEN_MIN_HEIGHT: usize = 480;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ParseError {
@@ -101,6 +101,7 @@ impl FromStr for Environment {
             // Get screen size
             let screen_key = "screen=";
             if env[i..].starts_with(screen_key) {
+                // Get length of width in characters
                 i += screen_key.len();
                 let width_offset = env[i..].find('x');
                 if width_offset.is_none() {
@@ -108,12 +109,21 @@ impl FromStr for Environment {
                 }
                 let width_offset = width_offset.unwrap();
 
+                // Parse screen width
                 let width = env[i..i + width_offset].parse::<usize>();
                 if width.is_err() {
                     continue;
                 }
                 let width = width.unwrap();
 
+                // Ensure screen width is valid
+                let width = if width < SCREEN_MIN_WIDTH {
+                    SCREEN_MIN_WIDTH
+                } else {
+                    width
+                };
+
+                // Get offset to height
                 i += width_offset + 1;
                 let height_offset = env[i..].find(char::is_whitespace);
                 if height_offset.is_none() {
@@ -121,6 +131,7 @@ impl FromStr for Environment {
                 }
                 let height_offset = height_offset.unwrap();
 
+                // Parse height
                 let height = env[i..i + height_offset].parse::<usize>();
                 if height.is_err() {
                     continue;
@@ -128,8 +139,17 @@ impl FromStr for Environment {
                 let height = height.unwrap();
                 i += height_offset;
 
+                // Ensure screen height is valid
+                let height = if height < SCREEN_MIN_HEIGHT {
+                    SCREEN_MIN_HEIGHT
+                } else {
+                    height
+                };
+
+                // Set screen resolution
                 screen = (width, height);
 
+                // Skip characters until new line is found
                 while i < env.len() {
                     if env[i..].starts_with('\n') {
                         break;
@@ -143,9 +163,11 @@ impl FromStr for Environment {
             let kernel_key = "kernel=";
             if env[i..].starts_with(kernel_key) {
                 i += kernel_key.len();
+                // Ensure not at end of file
                 if i >= env.len() {
                     continue;
                 }
+                // Skip whitespace until kernel path starts
                 let mut j = i;
                 while j < env.len() {
                     if env[j..].starts_with(char::is_whitespace) {
@@ -153,6 +175,7 @@ impl FromStr for Environment {
                     }
                     j += 1;
                 }
+                // Set kernel filename
                 if j - i >= 1 {
                     kernel_filename = &env[i..j];
                 }

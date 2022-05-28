@@ -2,9 +2,14 @@
 
 ## Immediate
 
+### Get Framebuffer
+
+* Query framebuffer modes and print each one in debug mode.
+* Pass framebuffer info into BOOTBOOT header.
+
 ### Running and Testing Bootloader
 
-* Create a binary `xtask` crate for running the bootloader and also running integration tests.
+* Research into different ways to run and test bootloader.
 
 ## Future
 

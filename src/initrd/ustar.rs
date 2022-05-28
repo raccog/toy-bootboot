@@ -7,7 +7,7 @@ pub fn read_ustar<'a>(initrd: &'a [u8], filename: &str) -> Option<&'a [u8]> {
     const SIZE_OFFSET: usize = 124;
     const SIZE_SIZE: usize = 12;
     const FILE_OFFSET: usize = BLOCK_SIZE;
-    // Initrd is a mutable reference of a slice; meaning it can change the start and 
+    // Initrd is a mutable reference of a slice; meaning it can change the start and
     // end of a slice, but not modify the contents.
     // This is utilized by moving the start point forward every file so that the next
     // file's header is the start of the slice in the next loop iteration.

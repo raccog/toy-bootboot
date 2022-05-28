@@ -42,6 +42,5 @@ pub fn read_to_vec(file: &mut RegularFile) -> UefiResult<Vec<u8>> {
 /// Reads an open `file` into a dynamically allocated utf8 `String`
 pub fn read_to_string(file: &mut RegularFile) -> UefiResult<String> {
     let buffer = read_to_vec(file)?;
-    String::from_utf8(buffer)
-        .map_err(|_| UefiError::new(Status::COMPROMISED_DATA, ()))
+    String::from_utf8(buffer).map_err(|_| UefiError::new(Status::COMPROMISED_DATA, ()))
 }
