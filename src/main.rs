@@ -220,6 +220,32 @@ pub fn get_gop_info(bt: &BootServices, target_resolution: (usize, usize)) -> Mod
     selected_mode.map_or(native_info, |mode| *mode.info())
 }
 
+pub fn get_framebuffer(bt: &BootServices, target_resolution: (usize, usize)) -> Framebuffer {
+    // Get GOP mode
+    let gop_info = get_gop_info(bt, target_resolution);
+    debug!(
+        "Selected mode: resolution={:?}, stride={}, format={:?}",
+        gop_info.resolution(),
+        gop_info.stride(),
+        gop_info.pixel_format()
+    );
+
+    // Get gop (graphics output protocol)
+    let gop = unsafe {
+        &mut *bt
+            .locate_protocol::<GraphicsOutput>()
+            .expect("Could not locate GOP")
+            .get()
+    };
+    let mut uefi_framebuffer = gop.frame_buffer();
+    let ptr = uefi_framebuffer.as_mut_ptr() as usize as u64;
+    let (width, height) = gop_info.resolution();
+    let size = uefi_framebuffer.size() as u32;
+
+    // Create Framebuffer from GOP info
+    Framebuffer::new(ptr, size, width as u32, height as u32, gop_info.stride() as u32)
+}
+
 #[entry]
 pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut st).unwrap();
@@ -267,14 +293,8 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Initialize Hardware
     //----------------------
 
-    // Get GOP mode
-    let gop_info = get_gop_info(bt, env.screen);
-    debug!(
-        "Selected mode: resolution={:?}, stride={}, format={:?}",
-        gop_info.resolution(),
-        gop_info.stride(),
-        gop_info.pixel_format()
-    );
+    let framebuffer = get_framebuffer(bt, env.screen);
+    debug!("Framebuffer: {:?}", framebuffer);
 
     // Get memory map from UEFI
     let mmap_size = bt.memory_map_size();
