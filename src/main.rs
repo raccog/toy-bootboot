@@ -52,6 +52,7 @@ pub use initrd::Initrd;
 pub use mmap::BootbootMMap;
 
 use core::{
+    ffi::c_void,
     slice,
     str::{self, FromStr},
 };
@@ -62,7 +63,10 @@ use uefi::{
         console::gop::{GraphicsOutput, Mode, ModeInfo},
         media::file::{Directory, File, FileAttribute, FileMode, RegularFile},
     },
-    table::boot::{BootServices, MemoryType},
+    table::{
+        boot::{BootServices, MemoryType},
+        cfg,
+    },
     Result as UefiResult,
 };
 
@@ -164,6 +168,10 @@ pub fn get_env(bootdir: &mut Directory, initrd: &Initrd) -> Environment {
 ///
 /// If the mode that is closest to the `target_resolution` is not the native mode, then the GOP is
 /// set to use the new mode. However, if this action fails then the native mode is returned.
+///
+/// # Panic
+///
+/// Panics if GOP cannot be located.
 pub fn get_gop_info(bt: &BootServices, target_resolution: (usize, usize)) -> ModeInfo {
     // Get gop (graphics output protocol)
     let gop = unsafe {
@@ -220,6 +228,12 @@ pub fn get_gop_info(bt: &BootServices, target_resolution: (usize, usize)) -> Mod
     selected_mode.map_or(native_info, |mode| *mode.info())
 }
 
+/// Uses UEFI Graphics Output Protocol to create a [`Framebuffer`] that most closely matches
+/// `target_resolution`.
+///
+/// # Panic
+///
+/// Panics if GOP cannot be located.
 pub fn get_framebuffer(bt: &BootServices, target_resolution: (usize, usize)) -> Framebuffer {
     // Get GOP mode
     let gop_info = get_gop_info(bt, target_resolution);
@@ -244,6 +258,91 @@ pub fn get_framebuffer(bt: &BootServices, target_resolution: (usize, usize)) -> 
 
     // Create Framebuffer from GOP info
     Framebuffer::new(ptr, size, width as u32, height as u32, gop_info.stride() as u32)
+}
+
+/// Returns a pointer to the RSDP.
+///
+/// If ACPI2.0 is supported, it will be preferred.
+///
+/// # Panic
+///
+/// Panics if no ACPI table could be found.
+pub fn get_rsdp(st: &SystemTable<Boot>) -> *const c_void {
+    let config_table = st.config_table();
+    
+    // Search for ACPI 2.0 table
+    if let Some(entry) = config_table.iter().find(|e| matches!(e.guid, cfg::ACPI2_GUID)) {
+        debug!("Found ACPI 2.0 table at: 0x{:x}", entry.address as usize);
+        return entry.address;
+    }
+
+    // Search for ACPI 1.0 table
+    if let Some(entry) = config_table.iter().find(|e| matches!(e.guid, cfg::ACPI_GUID)) {
+        debug!("Found ACPI 1.0 table at: 0x{:x}", entry.address as usize);
+        return entry.address;
+    }
+
+    panic!("Could not find ACPI table");
+}
+
+/// Returns a pointer to the RSDT/XSDT.
+///
+/// If ACPI2.0 is supported, it will be preferred.
+///
+/// # Panic
+///
+/// Panics if no ACPI table could be found.
+pub fn get_acpi_table(st: &SystemTable<Boot>) -> *const c_void {
+    // Get RSDP
+    let rsdp = get_rsdp(st) as *const u8;
+    let rsdp_signature = str::from_utf8(unsafe {
+        slice::from_raw_parts(rsdp, 4)
+    }).expect("Invalid ACPI signature");
+
+    // Check if RSDP is actually RSDT/XSDT
+    if matches!(rsdp_signature, "RSDT" | "XSDT") {
+        debug!("Found {}", rsdp_signature);
+        return rsdp as *const c_void;
+    }
+
+    // Panic if RSDP has invalid signature
+    let rsdp_signature = str::from_utf8(unsafe {
+        slice::from_raw_parts(rsdp, 8)
+    }).expect("Invalid ACPI signature");
+    if rsdp_signature != "RSD PTR " {
+        panic!("Invalid RSDP signature");
+    }
+
+    // Get ACPI revision
+    let revision = unsafe { *rsdp.add(15) };
+    let rsdp_header_len = if revision == 0 {
+        20
+    } else {
+        36
+    };
+
+    // RSDP header data
+    let rsdp_header = unsafe {
+        slice::from_raw_parts(rsdp, rsdp_header_len)
+    };
+
+    // Get pointer to RSDT/XSDT
+    let table = if revision == 0 {
+        u32::from_ne_bytes(rsdp_header[16..20].try_into().unwrap()) as usize
+    } else {
+        u64::from_ne_bytes(rsdp_header[24..32].try_into().unwrap()) as usize
+    };
+
+    // Check RSDT/XSDT signature
+    let rsdt_signature = str::from_utf8(unsafe {
+        slice::from_raw_parts(table as *const u8, 4)
+    }).expect("Invalid RSDT/XSDT signature");
+    if !matches!(rsdt_signature, "RSDT" | "XSDT") {
+        panic!("Invalid RSDT/XSDT signature");
+    }
+    debug!("Found {}: 0x{:x}", rsdt_signature, table);
+
+    table as *const c_void
 }
 
 #[entry]
@@ -293,8 +392,12 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Initialize Hardware
     //----------------------
 
+    // Get linear framebuffer
     let framebuffer = get_framebuffer(bt, env.screen);
     debug!("Framebuffer: {:?}", framebuffer);
+
+    // Get ACPI table
+    let acpi_table = get_acpi_table(&st);
 
     // Get memory map from UEFI
     let mmap_size = bt.memory_map_size();
