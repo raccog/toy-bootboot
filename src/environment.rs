@@ -1,5 +1,48 @@
 use alloc::string::{String, ToString};
-use core::str::FromStr;
+use core::str::{self, FromStr};
+use log::debug;
+use uefi::proto::media::file::{Directory, File, FileAttribute, FileMode};
+
+use crate::{Initrd, open_file, read_to_string};
+
+/// Returns the BOOTBOOT environment to pass to the kernel.
+///
+/// The following steps are run until a valid environment is returned:
+///
+/// 1. Try to read `BOOTBOOT/CONFIG` from boot partition and parse environment.
+/// 2. Try to read `sys/config` from `initrd` and parse environment.
+/// 3. If neither file contains a valid environment, return a default environment.
+pub fn get_env(bootdir: &mut Directory, initrd: &Initrd) -> Environment {
+    // Try to open BOOTBOOT/CONFIG
+    if let Ok(mut env_file) = open_file(bootdir, "CONFIG", FileMode::Read, FileAttribute::empty()) {
+        // Read config file to string
+        if let Ok(env_raw) = read_to_string(&mut env_file) {
+            // Parse environment
+            if let Ok(env) = Environment::from_str(&env_raw) {
+                debug!("Found BOOTBOOT/CONFIG in boot partition");
+                return env;
+            }
+        }
+
+        // CONFIG file close
+        env_file.close();
+    }
+
+    // Try to open sys/config in initrd
+    if let Some(env_raw) = initrd.read_file("sys/config") {
+        // Convert config file to string
+        if let Ok(env_raw) = str::from_utf8(env_raw) {
+            if let Ok(env) = Environment::from_str(env_raw) {
+                debug!("Found sys/config in initrd");
+                return env;
+            }
+        }
+    }
+
+    // Return default environment
+    debug!("Using default environment");
+    Environment::default()
+}
 
 // Since length does not include null terminator, max length is 4KiB - 1 or 4095 bytes
 const ENVIRONMENT_MAX_LEN: usize = 4095;
