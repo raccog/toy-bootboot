@@ -18,6 +18,18 @@
 
 * Setup initial page tables
 
+## Initializing Hardware
+
+NOTE: This order may not be the order of execution when implemented.
+
+- [x] Framebuffer
+- [ ] Multiprocessors
+- [x] Timestamp and timezone
+- [x] Get ACPI table
+- [x] Get SMBIOS table
+- [ ] Map memory
+- [ ] Init BSS and stack
+
 ## Future
 
 ### Memory Allocation

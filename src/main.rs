@@ -47,6 +47,7 @@ mod header;
 mod initrd;
 mod mmap;
 mod smbios;
+mod time;
 
 pub use acpi::SystemDescriptionTable;
 pub use environment::{get_env, Environment};
@@ -149,8 +150,12 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     let _acpi_table = unsafe { SystemDescriptionTable::from_uefi(&st) };
 
     // Get SMBIOS
-    //let smbios_table = get_smbios_table(st.config_table());
     let _smbios_table = unsafe { SmbiosEntryPoint::from_uefi(&st) };
+
+    // Get time
+    if let Ok(time) = time::get_time(&st) {
+        debug!("Got time: {:?}", time);
+    }
 
     // Get memory map from UEFI
     let mmap_size = bt.memory_map_size();

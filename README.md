@@ -31,15 +31,3 @@ The boot loading process is as follows:
 7. Map environment to static address (specified in source code)
 8. Map BOOTBOOT header to static address (specified in source code)
 9. Pass control to kernel entry point
-
-## Initializing Hardware
-
-NOTE: This order may not be the order of execution when implemented.
-
-- [x] Framebuffer
-- [ ] Multiprocessors
-- [ ] Timestamp
-- [x] Get ACPI table
-- [x] Get SMBIOS table
-- [ ] Map memory
-- [ ] Init BSS and stack
