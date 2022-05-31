@@ -33,8 +33,12 @@ pub fn get_gop_info(bt: &BootServices, target_resolution: (usize, usize)) -> Mod
         native_info.pixel_format()
     );
 
+    // Always use native video mode
+    native_info
+
     // Return native mode if it matches the target resolution
-    if native_info.resolution() == target_resolution {
+    // TODO: Decide on how to choose video mode when native does not match
+    /*if native_info.resolution() == target_resolution {
         return native_info;
     }
 
@@ -68,7 +72,7 @@ pub fn get_gop_info(bt: &BootServices, target_resolution: (usize, usize)) -> Mod
     }
 
     // Return native mode if search failed
-    selected_mode.map_or(native_info, |mode| *mode.info())
+    selected_mode.map_or(native_info, |mode| *mode.info())*/
 }
 
 /// Uses UEFI Graphics Output Protocol to create a [`Framebuffer`] that most closely matches
