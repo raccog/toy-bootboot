@@ -2,31 +2,33 @@
 
 ## Immediate
 
-### Get Framebuffer
+### Multiprocessor Initialization
 
-* Query framebuffer modes and print each one in debug mode.
-* Pass framebuffer info into BOOTBOOT header.
+* Get multiprocessor services from ACPI table
+* Start kernel on core 0
+* Start trampoline on each extra core
 
-### Running and Testing Bootloader
+### Parse Kernel ELF File
 
-* Research into different ways to run and test bootloader.
+* Get kernel from initrd
+* Parse kernel ELF header
+* Copy kernel into mapped memory
+
+### Memory Mapping
+
+* Setup initial page tables
 
 ## Future
-
-### Kernel
-
-* Read kernel from initrd
 
 ### Memory Allocation
 
 * Create custom allocator
 
-### Hardware Initialization
+### Running and Testing Bootloader
 
-* Learn about framebuffer, SMP, ACPI, etc.
+* Research into different ways to run and test bootloader.
 
 ### Misc
 
 * More documentation
-* Determine how to setup reliable tests
 * Create custom logger

@@ -2,7 +2,7 @@
 
 This is a toy implementation of the BOOTBOOT protocol for x86_64 UEFI systems.
 
-It is a work in progress and an experimental project. My main goal is to see what advantages and disadvantages there are in using Rust to make freestanding programs; both in safety and in abstractions. I also want to see if cargo (and other built-in rust tooling) can integrate well with an osdev toolchain.
+It is a work in progress and an experimental project. My main goal is to see what advantages and disadvantages there are in using Rust to make freestanding programs; in safety, abstractions, and tooling.
 
 If you want a non-experimental boot loader implementing the BOOTBOOT protocol, use the [official reference implementation](https://gitlab.com/bztsrc/bootboot).
 
@@ -36,12 +36,10 @@ The boot loading process is as follows:
 
 NOTE: This order may not be the order of execution when implemented.
 
-1. Get framebuffer
-2. Initialize SMP with all cores
-3. Get timezone
-4. Get timestamp of boot
-6. Init APIC
-9. Mask hardware interrupts
-10. Enable FPU and SIMD
-11. Enable virtual memory
-12. Init BSS and stack
+- [x] Framebuffer
+- [ ] Multiprocessors
+- [ ] Timestamp
+- [x] Get ACPI table
+- [x] Get SMBIOS table
+- [ ] Map memory
+- [ ] Init BSS and stack
