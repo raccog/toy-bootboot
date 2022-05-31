@@ -46,6 +46,7 @@ mod fs;
 mod header;
 mod initrd;
 mod mmap;
+mod smbios;
 
 pub use acpi::SystemDescriptionTable;
 pub use environment::{get_env, Environment};
@@ -53,6 +54,7 @@ pub use framebuffer::{get_framebuffer, Framebuffer};
 pub use fs::{open_dir, open_file, read_to_string, read_to_vec};
 pub use initrd::{get_initrd, Initrd};
 pub use mmap::BootbootMMap;
+pub use smbios::SmbiosEntryPoint;
 
 use core::{slice, str};
 use log::debug;
@@ -151,6 +153,7 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
 
     // Get SMBIOS
     //let smbios_table = get_smbios_table(st.config_table());
+    let _smbios_table = unsafe { SmbiosEntryPoint::from_uefi(&st) };
 
     // Get memory map from UEFI
     let mmap_size = bt.memory_map_size();

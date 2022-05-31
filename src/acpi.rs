@@ -197,7 +197,7 @@ impl SystemDescriptionTable {
         //-----------------------------------
 
         debug!(
-            "Found {} of size {} at 0x{:x}",
+            "Found {} of size 0x{:x} at 0x{:x}",
             signature, table_size, addr as usize
         );
 
