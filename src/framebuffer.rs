@@ -100,7 +100,13 @@ pub fn get_framebuffer(bt: &BootServices, target_resolution: (usize, usize)) -> 
     let size = uefi_framebuffer.size() as u32;
 
     // Create Framebuffer from GOP info
-    Framebuffer::new(ptr, size, width as u32, height as u32, gop_info.stride() as u32)
+    Framebuffer::new(
+        ptr,
+        size,
+        width as u32,
+        height as u32,
+        gop_info.stride() as u32,
+    )
 }
 
 /// BOOTBOOT linear framebuffer
@@ -116,6 +122,12 @@ pub struct Framebuffer {
 
 impl Framebuffer {
     pub fn new(ptr: u64, size: u32, width: u32, height: u32, scanline: u32) -> Self {
-        Self {ptr, size, width, height, scanline}
+        Self {
+            ptr,
+            size,
+            width,
+            height,
+            scanline,
+        }
     }
 }

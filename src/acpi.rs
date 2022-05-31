@@ -1,136 +1,225 @@
-use core::{
-    num::Wrapping,
-    slice,
-    str,
-};
+use core::{num::Wrapping, ptr, slice, str};
 use log::debug;
 use uefi::{
     prelude::{Boot, SystemTable},
     table::cfg,
 };
 
+pub enum AcpiParseError {
+    InvalidSignature,
+    FailedChecksum,
+}
 
-/// Returns true if the sum of every byte ends in 0x00.
-///
-/// In other words, this returns true if `sum % 0x100 == 0`.
-///
-/// This is used often in ACPI tables.
-fn zerosum_checksum(data: &[u8]) -> bool {
-    // Wrapping is used because only the last byte matters.
-    let mut sum = Wrapping(0);
+const RSDP_SIZE: usize = 20;
+const XSDP_SIZE: usize = 36;
+const DESCRIPTION_HEADER_SIZE: usize = 36;
 
+fn checksum(data: &[u8]) -> bool {
+    let mut sum: Wrapping<u8> = Wrapping(0);
     for b in data {
-        sum += *b;
+        sum += b;
     }
 
     sum.0 == 0
 }
 
-fn get_rsdt(addr: *const u8) -> &'static [u8] {
-    // Convert RSDT/XSDT pointer to slice
-    let rsdt = unsafe {
-        slice::from_raw_parts(addr, 36)
-    };
-
-    // Check RSDT/XSDT signature
-    const RSDT_SIG_ERR: &str = "Invalid RSDT/XSDT signature";
-    let rsdt_signature = str::from_utf8(&rsdt[..4])
-        .expect(RSDT_SIG_ERR);
-    if !matches!(rsdt_signature, "RSDT" | "XSDT") {
-        panic!("{}", RSDT_SIG_ERR);
-    }
-
-    // Get number of entries in RSDT/XSDT
-    let rsdt_size = u32::from_ne_bytes(rsdt[4..8].try_into().unwrap()) as usize;
-
-    // Expand RSDT/XSDT slice to contain all entries
-    let rsdt = unsafe {
-        slice::from_raw_parts(addr, rsdt_size)
-    };
-
-    // Check RSDT/XSDT checksum
-    if !zerosum_checksum(rsdt) {
-        panic!("{} checksum failed", rsdt_signature);
-    }
-
-    debug!("Found {} of size {} at 0x{:x}", rsdt_signature, rsdt_size, addr as usize);
-
-    rsdt
+#[repr(packed)]
+pub struct RootDescriptionPointer {
+    signature: [u8; 8],
+    _checksum: u8,
+    _oem_id: [u8; 6],
+    revision: u8,
+    rsdt_addr: u32,
 }
 
-/// Returns a pointer to the RSDT/XSDT.
-///
-/// If ACPI2.0 is supported, it will be preferred.
-///
-/// # Panic
-///
-/// Panics if:
-///
-/// * No ACPI table could be found
-/// * Checksum fails in RSDP or RSDT/XSDT
-pub fn get_acpi_table(st: &SystemTable<Boot>) -> &'static [u8] {
-    let config_table = st.config_table();
-    
-    // Search for ACPI 2.0 table. Search for ACPI 1.0 table if 2.0 is not found. Panic if neither
-    // is found.
-    let addr = if let Some(entry) = config_table.iter().find(|e| matches!(e.guid, cfg::ACPI2_GUID)) {
-        entry.address
-    } else if let Some(entry) = config_table.iter().find(|e| matches!(e.guid, cfg::ACPI_GUID)) {
-        entry.address
-    } else {
-        panic!("Could not find ACPI table");
-    } as *const u8;
+impl RootDescriptionPointer {
+    pub fn checksum(&self) -> bool {
+        // TODO: Research safety
+        let data = unsafe { slice::from_raw_parts((self as *const Self) as *const u8, RSDP_SIZE) };
 
-    // Check for RSDT/XSDT signature (first 4 bytes)
-    let rsdp_signature = str::from_utf8(unsafe {
-        slice::from_raw_parts(addr, 4)
-    }).expect("Invalid ACPI signature");
-
-    // Check if RSDP is actually RSDT/XSDT
-    if matches!(rsdp_signature, "RSDT" | "XSDT") {
-        return get_rsdt(addr);
+        checksum(data)
     }
 
-    // Get ACPI revision
-    let rsdp = unsafe {
-        slice::from_raw_parts(addr, 20)
-    };
-    let revision = rsdp[15];
-
-    // Panic if RSDP has invalid signature
-    const RSDP_SIG_ERR: &str = "Invalid RSDP signature";
-    let rsdp_signature = str::from_utf8(&rsdp[..8])
-        .expect(RSDP_SIG_ERR);
-    if rsdp_signature != "RSD PTR " {
-        panic!("{}", RSDP_SIG_ERR);
+    pub fn signature(&self) -> Result<&str, ()> {
+        str::from_utf8(&self.signature).map_err(|_| ())
     }
 
-    // Panic if checksum in RSDP fails
-    if !zerosum_checksum(rsdp) {
-        panic!("ACPI 1.0 checksum in RSDP failed");
+    pub fn valid_signature(&self) -> bool {
+        if let Ok(signature) = self.signature() {
+            signature == "RSD PTR "
+        } else {
+            false
+        }
+    }
+}
+
+#[repr(packed)]
+pub struct ExtendedDescriptionPointer {
+    _rsdp: RootDescriptionPointer,
+    _length: u32,
+    xsdt_addr: u64,
+    _checksum: u8,
+    _reserved: [u8; 3],
+}
+
+impl ExtendedDescriptionPointer {
+    pub fn checksum(&self) -> bool {
+        // TODO: Research safety
+        let data = unsafe { slice::from_raw_parts((self as *const Self) as *const u8, XSDP_SIZE) };
+
+        checksum(data)
+    }
+}
+
+/// An ACPI table, including header and entries.
+#[repr(packed)]
+pub struct SystemDescriptionTable {
+    header: DescriptionHeader,
+    entries: [u8],
+}
+
+impl SystemDescriptionTable {
+    pub fn checksum(&self) -> bool {
+        let table_size = 36 + self.entries.len();
+        // TODO: Research safety
+        let data = unsafe {
+            slice::from_raw_parts(
+                &self.header as *const DescriptionHeader as *const u8,
+                table_size,
+            )
+        };
+
+        checksum(data)
     }
 
-    debug!("Found RSDP revision {} at: 0x{:x}", revision, addr as usize);
+    pub unsafe fn from_uefi(st: &SystemTable<Boot>) -> &'static Self {
+        let config_table = st.config_table();
 
-    // Expand to XSDT if available
-    let rsdp = if revision >= 2 {
-        unsafe { slice::from_raw_parts(addr, 36) }
-    } else {
-        rsdp
-    };
+        // Search for ACPI 2.0 table. Then search for ACPI 1.0 table if 2.0 is not found. Panic if neither
+        // is found.
+        let addr = if let Some(entry) = config_table.iter().find(|e| e.guid == cfg::ACPI2_GUID) {
+            entry.address
+        } else if let Some(entry) = config_table.iter().find(|e| e.guid == cfg::ACPI_GUID) {
+            entry.address
+        } else {
+            panic!("Could not find ACPI table");
+        } as *const u8;
 
-    // If XSDT, panic if second checksum fails
-    if revision >= 2 && !zerosum_checksum(rsdp) {
-        panic!("ACPI 2.0 checksum in RSDP failed");
+        // Check if RSDP is actually RSDT/XSDT
+        // Return RSDT/XSDT if it is valid
+        if let Ok(table) = Self::try_parse(addr) {
+            return table;
+        }
+
+        // Convert to RSDP struct
+        // May not be valid
+        let rsdp = (addr as *const RootDescriptionPointer).as_ref().unwrap();
+
+        // Panic if signature is invalid
+        if !rsdp.valid_signature() {
+            panic!("Invalid RSDP signature");
+        }
+
+        // Panic if checksum failed
+        if !rsdp.checksum() {
+            panic!("RSDP checksum failed");
+        }
+
+        //------------------------------
+        // RSDP is valid at this point
+        //------------------------------
+
+        // Return XSDT if available
+        if rsdp.revision >= 2 {
+            // Convert to XSDP struct
+            // May not be valid
+            let xsdp = (addr as *const ExtendedDescriptionPointer)
+                .as_ref()
+                .unwrap();
+
+            // Panic if checksum failed
+            if !xsdp.checksum() {
+                panic!("XSDP checksum failed");
+            }
+
+            //------------------------------
+            // XSDP is valid at this point
+            //------------------------------
+
+            // Return XSDT if it is valid
+            if let Ok(xsdt) = Self::try_parse(xsdp.xsdt_addr as usize as *const u8) {
+                return xsdt;
+            } else {
+                panic!("Invalid XSDT");
+            }
+        }
+
+        // Return RSDT if it is valid
+        if let Ok(rsdt) = Self::try_parse(rsdp.rsdt_addr as usize as *const u8) {
+            rsdt
+        } else {
+            panic!("Invalid RSDT");
+        }
     }
 
-    // Get pointer to RSDT/XSDT
-    let addr = if revision >= 2 {
-        u64::from_ne_bytes(rsdp[24..32].try_into().unwrap()) as usize
-    } else {
-        u32::from_ne_bytes(rsdp[16..20].try_into().unwrap()) as usize
-    } as *const u8;
+    pub unsafe fn try_parse(addr: *const u8) -> Result<&'static Self, AcpiParseError> {
+        // Convert to header struct
+        // It may or may not be valid
+        let table_header = (addr as *const DescriptionHeader).as_ref().unwrap();
 
+        // Check if signature is valid
+        let signature = table_header
+            .signature()
+            .map_err(|_| AcpiParseError::InvalidSignature)?;
 
-    get_rsdt(addr)
+        // Return error if signature does not match
+        if !matches!(signature, "RSDT" | "XSDT") {
+            return Err(AcpiParseError::InvalidSignature);
+        }
+
+        // Get size of entire table
+        let table_size = table_header.length as usize;
+
+        // Convert to table struct
+        // It may or may not be valid
+        let table =
+            ptr::from_raw_parts::<Self>(addr as *const (), table_size - DESCRIPTION_HEADER_SIZE)
+                .as_ref()
+                .unwrap();
+
+        // Return error if checksum fails
+        if !table.checksum() {
+            return Err(AcpiParseError::FailedChecksum);
+        }
+
+        //-----------------------------------
+        // RSDT/XSDT is valid at this point
+        //-----------------------------------
+
+        debug!(
+            "Found {} of size {} at 0x{:x}",
+            signature, table_size, addr as usize
+        );
+
+        Ok(table)
+    }
+}
+
+#[repr(packed)]
+pub struct DescriptionHeader {
+    signature: [u8; 4],
+    length: u32,
+    _revision: u8,
+    _checksum: u8,
+    _oem_id: [u8; 6],
+    _oem_table_id: u64,
+    _oem_revision: u32,
+    _creator_id: u32,
+    _creator_revision: u32,
+}
+
+impl DescriptionHeader {
+    pub fn signature(&self) -> Result<&str, ()> {
+        str::from_utf8(&self.signature).map_err(|_| ())
+    }
 }

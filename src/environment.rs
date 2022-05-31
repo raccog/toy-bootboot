@@ -3,7 +3,7 @@ use core::str::{self, FromStr};
 use log::debug;
 use uefi::proto::media::file::{Directory, File, FileAttribute, FileMode};
 
-use crate::{Initrd, open_file, read_to_string};
+use crate::{open_file, read_to_string, Initrd};
 
 /// Returns the BOOTBOOT environment to pass to the kernel.
 ///

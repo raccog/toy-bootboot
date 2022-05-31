@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(abi_efiapi)]
 #![feature(iter_advance_by)]
+#![feature(ptr_metadata)]
 #![feature(slice_take)]
 //! This is a toy implementation of the BOOTBOOT protocol for x86_64 UEFI systems.
 //!
@@ -46,17 +47,14 @@ mod header;
 mod initrd;
 mod mmap;
 
-pub use acpi::get_acpi_table;
-pub use environment::{Environment, get_env};
-pub use framebuffer::{Framebuffer, get_framebuffer};
+pub use acpi::SystemDescriptionTable;
+pub use environment::{get_env, Environment};
+pub use framebuffer::{get_framebuffer, Framebuffer};
 pub use fs::{open_dir, open_file, read_to_string, read_to_vec};
-pub use initrd::{Initrd, get_initrd};
+pub use initrd::{get_initrd, Initrd};
 pub use mmap::BootbootMMap;
 
-use core::{
-    slice,
-    str,
-};
+use core::{slice, str};
 use log::debug;
 use uefi::{
     prelude::*,
@@ -81,6 +79,21 @@ fn debug_info(st: &SystemTable<Boot>) {
         uefi_revision.minor()
     );
 }
+
+/*
+fn get_smbios_table(config_table: &[ConfigTableEntry]) -> &'static [u8] {
+    let addr = if let Some(entry) = config_table.iter().find(|e| matches!(e.guid, cfg::SMBIOS_GUID)) {
+        debug!("Found SMBIOS");
+        entry
+    } else if let Some(entry) = config_table.iter().find(|e| matches!(e.guid, cfg::SMBIOS_GUID)) {
+        debug!("Found SMBIOS3");
+    } else {
+        painic!("Could not find SMBIOS");
+    } as *const u8;
+
+
+}
+*/
 
 #[entry]
 pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
@@ -134,7 +147,10 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     debug!("Framebuffer: {:?}", framebuffer);
 
     // Get ACPI table
-    let acpi_table = get_acpi_table(&st);
+    let _acpi_table = unsafe { SystemDescriptionTable::from_uefi(&st) };
+
+    // Get SMBIOS
+    //let smbios_table = get_smbios_table(st.config_table());
 
     // Get memory map from UEFI
     let mmap_size = bt.memory_map_size();
@@ -152,7 +168,5 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     let mmap = BootbootMMap::from_uefi_mmap(desc_iter);
     debug!("{}", mmap);
 
-    loop {}
-
-    Status::SUCCESS
+    panic!("Bootloader done (this will be removed when os loading is implemented)");
 }

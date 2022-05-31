@@ -44,40 +44,40 @@ impl TryFrom<u8> for BootbootProtocolLevel {
 
 /// BOOTBOOT protocol
 #[repr(transparent)]
-pub struct BootbootProtocol(u8);
+pub struct _BootbootProtocol(u8);
 
-impl BootbootProtocol {
+impl _BootbootProtocol {
     /// Returns true if this architecture is big endian
-    pub fn is_big_endian(&self) -> bool {
+    pub fn _is_big_endian(&self) -> bool {
         (self.0 & 0x80) == 0x80
     }
 
     /// Returns the BOOTBOOT protocol level
-    pub fn level(&self) -> BootbootProtocolLevel {
+    pub fn _level(&self) -> BootbootProtocolLevel {
         (self.0 & 0b0011).try_into().unwrap()
     }
 
     /// Returns the BOOTBOOT loader type
-    pub fn loader_type(&self) -> LoaderType {
+    pub fn _loader_type(&self) -> LoaderType {
         ((self.0 & 0b0111_1100) >> 2).try_into().unwrap()
     }
 
     /// Returns a BOOTBOOT protocol
-    pub fn new(protocol: u8) -> Self {
+    pub fn _new(protocol: u8) -> Self {
         Self(protocol)
     }
 }
 
-pub struct BootbootHeader {
+pub struct _BootbootHeader {
     fb: Framebuffer,
     initrd: Initrd,
-    protocol: BootbootProtocol,
+    protocol: _BootbootProtocol,
 }
 
-impl BootbootHeader {
+impl _BootbootHeader {
     /// Initialize a BOOTBOOT header.
-    pub fn new(fb: Framebuffer, initrd: Initrd, protocol: BootbootProtocol) -> Self {
-        BootbootHeader {
+    pub fn _new(fb: Framebuffer, initrd: Initrd, protocol: _BootbootProtocol) -> Self {
+        _BootbootHeader {
             fb,
             initrd,
             protocol,
@@ -87,7 +87,7 @@ impl BootbootHeader {
     /// Returns the magic numbers in the BOOTBOOT header.
     ///
     /// Should always be [66, 79, 79, 84], or "BOOT" when read as a string.
-    pub fn magic() -> [u8; 4] {
+    pub fn _magic() -> [u8; 4] {
         [66, 79, 79, 84]
     }
 }
