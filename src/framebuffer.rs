@@ -1,7 +1,7 @@
 use log::debug;
 use uefi::{
     prelude::BootServices,
-    proto::console::gop::{GraphicsOutput, Mode, ModeInfo},
+    proto::console::gop::{GraphicsOutput, ModeInfo},
 };
 
 /// Uses UEFI Graphics Output Protocol to find an available graphics mode that closely matches the
@@ -15,7 +15,7 @@ use uefi::{
 /// # Panic
 ///
 /// Panics if GOP cannot be located.
-pub fn get_gop_info(bt: &BootServices, target_resolution: (usize, usize)) -> ModeInfo {
+pub fn get_gop_info(bt: &BootServices, _target_resolution: (usize, usize)) -> ModeInfo {
     // Get gop (graphics output protocol)
     let gop = unsafe {
         &mut *bt

@@ -12,19 +12,19 @@ use uefi::{
 #[repr(packed)]
 pub struct SmbiosEntryPoint {
     anchor: [u8; 4],
-    entry_point_checksum: u8,
+    _entry_point_checksum: u8,
     entry_point_length: u8,
-    version_major: u8,
-    version_minor: u8,
-    max_struct_size: u16,
-    entry_point_revision: u8,
-    formatted_area: [u8; 5],
-    intermediate_anchor: [u8; 5],
-    intermediate_checksum: u8,
-    table_length: u16,
-    table_address: u32,
-    num_structs: u16,
-    bcd_revision: u8,
+    _version_major: u8,
+    _version_minor: u8,
+    _max_struct_size: u16,
+    _entry_point_revision: u8,
+    _formatted_area: [u8; 5],
+    _intermediate_anchor: [u8; 5],
+    _intermediate_checksum: u8,
+    _table_length: u16,
+    _table_address: u32,
+    _num_structs: u16,
+    _bcd_revision: u8,
 }
 
 impl SmbiosEntryPoint {
