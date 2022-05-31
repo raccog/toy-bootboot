@@ -1,8 +1,4 @@
-use core::{
-    num::Wrapping,
-    slice,
-    str,
-};
+use core::{num::Wrapping, slice, str};
 use log::debug;
 use uefi::{
     prelude::{Boot, SystemTable},
@@ -32,7 +28,8 @@ impl SmbiosEntryPoint {
         let length = self.entry_point_length;
         let mut sum: Wrapping<u8> = Wrapping(0);
         // TODO: Research safety
-        let data = unsafe { slice::from_raw_parts(self as *const Self as *const u8, length as usize) };
+        let data =
+            unsafe { slice::from_raw_parts(self as *const Self as *const u8, length as usize) };
         for b in data {
             sum += b;
         }
@@ -44,7 +41,9 @@ impl SmbiosEntryPoint {
         let config_table = st.config_table();
 
         // Search config table for SMBIOS
-        let smbios_entry = config_table.iter().find(|e| e.guid == cfg::SMBIOS_GUID)
+        let smbios_entry = config_table
+            .iter()
+            .find(|e| e.guid == cfg::SMBIOS_GUID)
             .unwrap_or_else(|| panic!("Could not find SMBIOS in config table"));
         let smbios_addr = smbios_entry.address;
 
@@ -66,13 +65,15 @@ impl SmbiosEntryPoint {
         // SMBIOS is valid at this point
         //--------------------------------
 
-        debug!("Found SMBIOS of size 0x{:x} at 0x{:x}", smbios.entry_point_length, smbios_entry.address as usize);
+        debug!(
+            "Found SMBIOS of size 0x{:x} at 0x{:x}",
+            smbios.entry_point_length, smbios_entry.address as usize
+        );
         smbios
     }
 
     pub fn signature(&self) -> Result<&str, ()> {
-        str::from_utf8(&self.anchor)
-            .map_err(|_| ())
+        str::from_utf8(&self.anchor).map_err(|_| ())
     }
 
     pub fn valid_signature(&self) -> bool {
@@ -83,4 +84,3 @@ impl SmbiosEntryPoint {
         }
     }
 }
-

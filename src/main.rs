@@ -58,10 +58,7 @@ pub use smbios::SmbiosEntryPoint;
 
 use core::{slice, str};
 use log::debug;
-use uefi::{
-    prelude::*,
-    table::boot::MemoryType,
-};
+use uefi::{prelude::*, table::boot::MemoryType};
 
 fn debug_info(st: &SystemTable<Boot>) {
     // Print firmware info
