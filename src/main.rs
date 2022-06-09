@@ -48,12 +48,13 @@ mod initrd;
 mod mmap;
 mod smbios;
 mod time;
+mod utils;
 
-pub use acpi::SystemDescriptionTable;
-pub use environment::{get_env, Environment};
-pub use framebuffer::{get_framebuffer, Framebuffer};
+pub use acpi::AcpiSystemDescriptionTable;
+pub use environment::Environment;
+pub use framebuffer::Framebuffer;
 pub use fs::{open_dir, open_file, read_to_string, read_to_vec};
-pub use initrd::{get_initrd, Initrd};
+pub use initrd::Initrd;
 pub use mmap::BootbootMMap;
 pub use smbios::SmbiosEntryPoint;
 
@@ -124,15 +125,16 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     // Read initrd file to memory
     //------------------------
 
-    let initrd = get_initrd(&mut bootdir);
-    debug!("Found initrd of size: {} KiB", initrd.len() / 1024);
+    // Panic if initrd could not be found
+    let initrd = Initrd::from_disk(&mut bootdir).expect("Could not read initrd from disk");
+    debug!("Found initrd of size: {} KiB", initrd.size() / 1024);
 
     //-----------------------------
     // Step 2:
     // Read/Create BOOTBOOT environment
     //-----------------------------
 
-    let env = get_env(&mut bootdir, &initrd);
+    let env = Environment::get_env(&mut bootdir, &initrd);
     debug!("Kernel name: {}", env.kernel);
     debug!("SMP: {}", !env.no_smp);
     debug!("Target resolution: {:?}", env.screen);
@@ -143,14 +145,15 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     //----------------------
 
     // Get linear framebuffer
-    let framebuffer = get_framebuffer(bt, env.screen);
+    let framebuffer =
+        Framebuffer::from_boot_services(bt, env.screen).expect("Could not get framebuffer");
     debug!("Framebuffer: {:?}", framebuffer);
 
     // Get ACPI table
-    let _acpi_table = unsafe { SystemDescriptionTable::from_uefi(&st) };
+    let _acpi_table = AcpiSystemDescriptionTable::from_uefi_config_table(st.config_table());
 
     // Get SMBIOS
-    let _smbios_table = unsafe { SmbiosEntryPoint::from_uefi(&st) };
+    let _smbios_table = SmbiosEntryPoint::from_uefi_config_table(st.config_table());
 
     // Get time
     if let Ok(time) = time::get_time(&st) {

@@ -2,6 +2,10 @@ use core::str::from_utf8;
 
 const BLOCK_SIZE: usize = 512;
 
+/// Tries to read `filename` from initrd; a tar archive.
+///
+/// Returns `None` if initrd is not a valid tar archive or if `filename` is not a valid file in the
+/// archive.
 pub fn read_ustar<'a>(initrd: &'a [u8], filename: &str) -> Option<&'a [u8]> {
     const NAME_SIZE: usize = 100;
     const SIZE_OFFSET: usize = 124;

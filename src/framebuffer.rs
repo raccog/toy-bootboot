@@ -2,6 +2,7 @@ use log::debug;
 use uefi::{
     prelude::BootServices,
     proto::console::gop::{GraphicsOutput, ModeInfo},
+    Result as UefiResult,
 };
 
 /// Uses UEFI Graphics Output Protocol to find an available graphics mode that closely matches the
@@ -12,17 +13,12 @@ use uefi::{
 /// If the mode that is closest to the `target_resolution` is not the native mode, then the GOP is
 /// set to use the new mode. However, if this action fails then the native mode is returned.
 ///
-/// # Panic
+/// # Errors
 ///
-/// Panics if GOP cannot be located.
-pub fn get_gop_info(bt: &BootServices, _target_resolution: (usize, usize)) -> ModeInfo {
-    // Get gop (graphics output protocol)
-    let gop = unsafe {
-        &mut *bt
-            .locate_protocol::<GraphicsOutput>()
-            .expect("Could not locate GOP")
-            .get()
-    };
+/// Returns an error if GOP cannot be located.
+fn get_gop_info(bt: &BootServices, _target_resolution: (usize, usize)) -> UefiResult<ModeInfo> {
+    // Try to get GOP (graphics output protocol)
+    let gop = unsafe { &mut *bt.locate_protocol::<GraphicsOutput>()?.get() };
 
     // Get GOP native mode
     let native_info = gop.current_mode_info();
@@ -33,87 +29,14 @@ pub fn get_gop_info(bt: &BootServices, _target_resolution: (usize, usize)) -> Mo
         native_info.pixel_format()
     );
 
-    // Always use native video mode
-    native_info
+    // Always use native video mode for now
+    Ok(native_info)
 
     // Return native mode if it matches the target resolution
     // TODO: Decide on how to choose video mode when native does not match
-    /*if native_info.resolution() == target_resolution {
-        return native_info;
-    }
-
-    // If native resolution does not match target resolution:
-    // Search each available mode to find one that is closest to matching the target resolution
-    let mut selected_mode: Option<Mode> = None;
-    for mode in gop.modes() {
-        let info = mode.info();
-        let resolution = info.resolution();
-
-        // Compare to target resolution
-        if resolution.0 >= target_resolution.0 && resolution.1 >= target_resolution.1 {
-            if let Some(ref selected_mode_inner) = selected_mode {
-                let selected_resolution = selected_mode_inner.info().resolution();
-                // Compare to currently selected mode
-                if resolution.0 < selected_resolution.0 && resolution.1 < selected_resolution.1 {
-                    selected_mode = Some(mode);
-                }
-            } else {
-                selected_mode = Some(mode);
-            }
-        }
-    }
-
-    // Set GOP mode to the selected mode
-    // Returns native mode if this fails
-    if let Some(ref selected_mode) = selected_mode {
-        if gop.set_mode(selected_mode).is_err() {
-            return native_info;
-        }
-    }
-
-    // Return native mode if search failed
-    selected_mode.map_or(native_info, |mode| *mode.info())*/
 }
 
-/// Uses UEFI Graphics Output Protocol to create a [`Framebuffer`] that most closely matches
-/// `target_resolution`.
-///
-/// # Panic
-///
-/// Panics if GOP cannot be located.
-pub fn get_framebuffer(bt: &BootServices, target_resolution: (usize, usize)) -> Framebuffer {
-    // Get GOP mode
-    let gop_info = get_gop_info(bt, target_resolution);
-    debug!(
-        "Selected mode: resolution={:?}, stride={}, format={:?}",
-        gop_info.resolution(),
-        gop_info.stride(),
-        gop_info.pixel_format()
-    );
-
-    // Get gop (graphics output protocol)
-    let gop = unsafe {
-        &mut *bt
-            .locate_protocol::<GraphicsOutput>()
-            .expect("Could not locate GOP")
-            .get()
-    };
-    let mut uefi_framebuffer = gop.frame_buffer();
-    let ptr = uefi_framebuffer.as_mut_ptr() as usize as u64;
-    let (width, height) = gop_info.resolution();
-    let size = uefi_framebuffer.size() as u32;
-
-    // Create Framebuffer from GOP info
-    Framebuffer::new(
-        ptr,
-        size,
-        width as u32,
-        height as u32,
-        gop_info.stride() as u32,
-    )
-}
-
-/// BOOTBOOT linear framebuffer
+/// BOOTBOOT linear framebuffer information.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Framebuffer {
@@ -125,13 +48,41 @@ pub struct Framebuffer {
 }
 
 impl Framebuffer {
-    pub fn new(ptr: u64, size: u32, width: u32, height: u32, scanline: u32) -> Self {
-        Self {
+    /// Uses UEFI Graphics Output Protocol to create a [`Framebuffer`] that most closely matches
+    /// `target_resolution`.
+    ///
+    /// For now, the native resolution is always used.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if GOP cannot be located.
+    pub fn from_boot_services(
+        bt: &BootServices,
+        target_resolution: (usize, usize),
+    ) -> UefiResult<Self> {
+        // Get GOP mode
+        let gop_info = get_gop_info(bt, target_resolution)?;
+        debug!(
+            "Selected mode: resolution={:?}, stride={}, format={:?}",
+            gop_info.resolution(),
+            gop_info.stride(),
+            gop_info.pixel_format()
+        );
+
+        // Get GOP (graphics output protocol)
+        let gop = unsafe { &mut *bt.locate_protocol::<GraphicsOutput>()?.get() };
+        let mut uefi_framebuffer = gop.frame_buffer();
+        let ptr = uefi_framebuffer.as_mut_ptr() as usize as u64;
+        let (width, height) = gop_info.resolution();
+        let size = uefi_framebuffer.size() as u32;
+
+        // Create Framebuffer from GOP info
+        Ok(Self {
             ptr,
             size,
-            width,
-            height,
-            scanline,
-        }
+            width: width as u32,
+            height: height as u32,
+            scanline: gop_info.stride() as u32,
+        })
     }
 }

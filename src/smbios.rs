@@ -1,11 +1,12 @@
-use core::{num::Wrapping, slice, str};
+use core::str;
 use log::debug;
-use uefi::{
-    prelude::{Boot, SystemTable},
-    table::cfg,
-};
+use uefi::table::cfg::{self, ConfigTableEntry};
 
+use crate::utils::{Checksum, ParseError};
+
+/// SMBIOS entry point struct.
 #[repr(packed)]
+#[derive(Copy, Clone, Debug)]
 pub struct SmbiosEntryPoint {
     anchor: [u8; 4],
     _entry_point_checksum: u8,
@@ -23,42 +24,43 @@ pub struct SmbiosEntryPoint {
     _bcd_revision: u8,
 }
 
+impl Checksum for SmbiosEntryPoint {}
+
 impl SmbiosEntryPoint {
-    pub fn checksum(&self) -> bool {
-        let length = self.entry_point_length;
-        let mut sum: Wrapping<u8> = Wrapping(0);
-        // TODO: Research safety
-        let data =
-            unsafe { slice::from_raw_parts(self as *const Self as *const u8, length as usize) };
-        for b in data {
-            sum += b;
-        }
-
-        sum.0 == 0
-    }
-
-    pub unsafe fn from_uefi(st: &SystemTable<Boot>) -> &'static SmbiosEntryPoint {
-        let config_table = st.config_table();
-
+    /// Parses the UEFI config tables to get the SMBIOS table.
+    ///
+    /// # Errors
+    ///
+    /// * `ParseError::NoTable`: SMBIOS table cannot be found
+    /// * `ParseError::FailedChecksum`: SMBIOS checksum failed
+    /// * `ParseError::InvalidSignature`: SMBIOS signature is invalid
+    /// * `ParseError::InvalidPointer`: A null pointer was found during parse
+    pub fn from_uefi_config_table(
+        config_table: &[ConfigTableEntry],
+    ) -> Result<&SmbiosEntryPoint, ParseError> {
         // Search config table for SMBIOS
         let smbios_entry = config_table
             .iter()
             .find(|e| e.guid == cfg::SMBIOS_GUID)
-            .unwrap_or_else(|| panic!("Could not find SMBIOS in config table"));
+            .ok_or(ParseError::NoTable)?;
         let smbios_addr = smbios_entry.address;
 
         // Convert to SMBIOS struct
         // May not be valid
-        let smbios = &*(smbios_addr as *const Self);
+        let smbios = unsafe {
+            (smbios_addr as *const Self)
+                .as_ref()
+                .ok_or(ParseError::InvalidPointer)?
+        };
 
         // Panic if signature is invalid
         if !smbios.valid_signature() {
-            panic!("Invalid SMBIOS anchor");
+            return Err(ParseError::InvalidSignature);
         }
 
         // Panic if checksum failed
-        if !smbios.checksum() {
-            panic!("SMBIOS checksum failed");
+        if !smbios.checksum_valid() {
+            return Err(ParseError::FailedChecksum);
         }
 
         //--------------------------------
@@ -69,13 +71,19 @@ impl SmbiosEntryPoint {
             "Found SMBIOS of size 0x{:x} at 0x{:x}",
             smbios.entry_point_length, smbios_entry.address as usize
         );
-        smbios
+        Ok(smbios)
     }
 
+    /// Returns the 4 byte signature of the SMBIOS header.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the signature is not valid UTF-8.
     pub fn signature(&self) -> Result<&str, ()> {
         str::from_utf8(&self.anchor).map_err(|_| ())
     }
 
+    /// Returns true if the SMBIOS signature is valid.
     pub fn valid_signature(&self) -> bool {
         if let Ok(signature) = self.signature() {
             signature == "_SM_"
