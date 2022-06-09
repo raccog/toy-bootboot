@@ -40,6 +40,7 @@
 extern crate alloc;
 
 mod acpi;
+mod elf;
 mod environment;
 mod framebuffer;
 mod fs;
@@ -51,6 +52,7 @@ mod time;
 mod utils;
 
 pub use acpi::AcpiSystemDescriptionTable;
+pub use elf::{Elf64Header, ElfParseError};
 pub use environment::Environment;
 pub use framebuffer::Framebuffer;
 pub use fs::{open_dir, open_file, read_to_string, read_to_vec};
@@ -58,7 +60,7 @@ pub use initrd::Initrd;
 pub use mmap::BootbootMMap;
 pub use smbios::SmbiosEntryPoint;
 
-use core::{slice, str};
+use core::{mem, slice, str};
 use log::debug;
 use uefi::{prelude::*, table::boot::MemoryType};
 
@@ -159,6 +161,31 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     if let Ok(time) = time::get_time(&st) {
         debug!("Got time: {:?}", time);
     }
+
+    // Get kernel ELF file
+    // Panic if not found
+    let kernel = initrd
+        .read_file(&env.kernel)
+        .unwrap_or_else(|| panic!("Could not read kernel at file: {}", env.kernel));
+    // Panic if too small
+    if kernel.len() < mem::size_of::<Elf64Header>() {
+        panic!("Kernel of size {} bytes is too small", kernel.len());
+    }
+    debug!(
+        "Found kernel at file {} of size {} bytes",
+        env.kernel,
+        kernel.len()
+    );
+
+    // Get ELF64 header
+    let elf_header = Elf64Header::new(kernel[..mem::size_of::<Elf64Header>()].try_into().unwrap());
+    if let Err(parse_error) = elf_header {
+        panic!("Error while parsing Elf header: {:?}", parse_error);
+    }
+    let elf_header = elf_header.unwrap();
+    debug!("Entry: 0x{:x}", elf_header.entry());
+    debug!("PH Offset: 0x{:x}", elf_header.ph_offset());
+    debug!("SH Offset: 0x{:x}", elf_header.sh_offset());
 
     // Get memory map from UEFI
     let mmap_size = bt.memory_map_size();
