@@ -13,6 +13,8 @@ pub enum ElfParseError {
     NotLittleEndian,
 }
 
+const ELF_HEADER_NIDENT: usize = 16;
+
 const SIZE_64_BITS: u8 = 2;
 
 const LITTLE_ENDIAN: u8 = 1;
@@ -25,22 +27,16 @@ const SYSTEMV_ABI: u8 = 0;
 const X86_64_ISA: u16 = 0x3e;
 
 /// The header for an ELF64 file.
-#[repr(packed)]
+#[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct Elf64Header {
-    magic: [u8; 4],
-    class: u8,
-    data: u8,
-    ident_version: u8,
-    os_abi: u8,
-    _abi_version: u8,
-    _padding: [u8; 7],
+    ident: [u8; ELF_HEADER_NIDENT],
     file_type: u16,
     isa: u16,
     version: u32,
-    entry: u64,
-    ph_offset: u64,
-    sh_offset: u64,
+    pub entry: u64,
+    pub ph_offset: u64,
+    pub sh_offset: u64,
     _flags: u32,
     header_size: u16,
     _ph_entry_size: u16,
@@ -51,14 +47,30 @@ pub struct Elf64Header {
 }
 
 impl Elf64Header {
-    /// Returns the entry point to this exectuable.
-    pub fn entry(&self) -> u64 {
-        self.entry
+    /// Returns the class of this ELF64 header (32/64 bits).
+    ///
+    /// After being parsed in [`Elf64Header::new`], this header is guarenteed to be 64bits.
+    pub fn class(&self) -> u8 {
+        self.ident[4]
     }
 
-    /// Returns the valid magic numbers for an ELF header.
-    pub fn magic() -> [u8; 4] {
-        [0x7f, 0x45, 0x4c, 0x46]
+    /// Returns the byte format of this ELF64 header (little/big endian).
+    ///
+    /// After being parsed in [`Elf64Header::new`], this header is guarenteed to be little endian.
+    pub fn data(&self) -> u8 {
+        self.ident[5]
+    }
+
+    /// Returns the version number in the identification part of the header.
+    ///
+    /// After being parsed in [`Elf64Header::new`], this version is guarenteed to be 1.
+    pub fn ident_version(&self) -> u8 {
+        self.ident[6]
+    }
+
+    /// Returns the magic values from this ELF64 header.
+    pub fn magic(&self) -> [u8; 4] {
+        self.ident[..4].try_into().unwrap()
     }
 
     /// Parses `data` into an ELF64 header and ensures that it is valid and able to be loaded by
@@ -78,23 +90,23 @@ impl Elf64Header {
     pub fn new(data: [u8; mem::size_of::<Self>()]) -> Result<Self, ElfParseError> {
         let header = unsafe { *(&data[0] as *const u8 as *const Self) };
         // Ensure magic is valid
-        if header.magic != Self::magic() {
+        if header.magic() != Self::valid_magic() {
             return Err(ElfParseError::InvalidMagic);
         }
         // Ensure file is 64bit
-        if header.class != SIZE_64_BITS {
+        if header.class() != SIZE_64_BITS {
             return Err(ElfParseError::Not64Bit);
         }
         // Ensure little endian, as this only runs on x86_64
-        if header.data != LITTLE_ENDIAN {
+        if header.data() != LITTLE_ENDIAN {
             return Err(ElfParseError::NotLittleEndian);
         }
         // Ensure ELF is at current version
-        if header.ident_version != ELF_IDENT_VERSION && header.version == ELF_OLD_VERSION {
+        if header.ident_version() != ELF_IDENT_VERSION && header.version == ELF_OLD_VERSION {
             return Err(ElfParseError::InvalidVersion);
         }
         // Ensure ABI is SystemV
-        if header.os_abi != SYSTEMV_ABI {
+        if header.os_abi() != SYSTEMV_ABI {
             return Err(ElfParseError::InvalidAbi);
         }
         // Ensure file type is executable
@@ -112,13 +124,15 @@ impl Elf64Header {
         Ok(header)
     }
 
-    /// Returns the offset (from the start of the header) to the first program header.
-    pub fn ph_offset(&self) -> u64 {
-        self.ph_offset
+    /// Returns the ABI used in this ELF64 header.
+    ///
+    /// After being parsed in [`Elf64Header::new`], this header is guarenteed to use SystemV ABI.
+    pub fn os_abi(&self) -> u8 {
+        self.ident[7]
     }
 
-    /// Returns the offset (from the start of the header) to the first section header.
-    pub fn sh_offset(&self) -> u64 {
-        self.sh_offset
+    /// Returns the valid magic numbers for an ELF header.
+    pub fn valid_magic() -> [u8; 4] {
+        [0x7f, 0x45, 0x4c, 0x46]
     }
 }

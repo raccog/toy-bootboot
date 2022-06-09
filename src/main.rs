@@ -183,9 +183,9 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
         panic!("Error while parsing Elf header: {:?}", parse_error);
     }
     let elf_header = elf_header.unwrap();
-    debug!("Entry: 0x{:x}", elf_header.entry());
-    debug!("PH Offset: 0x{:x}", elf_header.ph_offset());
-    debug!("SH Offset: 0x{:x}", elf_header.sh_offset());
+    debug!("Entry: 0x{:x}", elf_header.entry);
+    debug!("PH Offset: 0x{:x}", elf_header.ph_offset);
+    debug!("SH Offset: 0x{:x}", elf_header.sh_offset);
 
     // Get memory map from UEFI
     let mmap_size = bt.memory_map_size();
