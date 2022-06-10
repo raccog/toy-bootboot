@@ -1,5 +1,7 @@
 use core::{mem, slice};
 
+use crate::utils::Magic;
+
 /// An error resulting from parsing an ELF file.
 #[derive(Copy, Clone, Debug)]
 pub enum ElfParseError {
@@ -115,11 +117,6 @@ impl ElfHeader64 {
         self.ident[6]
     }
 
-    /// Returns the magic values from this ELF64 header.
-    pub fn magic(&self) -> [u8; 4] {
-        self.ident[..4].try_into().unwrap()
-    }
-
     /// Parses `data` into an ELF64 header and ensures that it is valid and able to be loaded by
     /// this bootloader.
     ///
@@ -178,9 +175,16 @@ impl ElfHeader64 {
         self.ident[7]
     }
 
-    /// Returns the valid magic numbers for an ELF header.
-    pub fn valid_magic() -> [u8; 4] {
+    /// Returns the valid ELF magic numbers.
+    fn valid_magic() -> [u8; 4] {
+        // 0x7f "ELF"
         [0x7f, 0x45, 0x4c, 0x46]
+    }
+}
+
+impl Magic<4> for ElfHeader64 {
+    fn magic(&self) -> [u8; 4] {
+        self.ident[..4].try_into().unwrap()
     }
 }
 

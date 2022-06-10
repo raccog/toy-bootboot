@@ -1,8 +1,7 @@
-use core::str;
 use log::debug;
 use uefi::table::cfg::{self, ConfigTableEntry};
 
-use crate::utils::{Checksum, ParseError};
+use crate::utils::{Checksum, Magic, ParseError};
 
 /// SMBIOS entry point struct.
 #[repr(packed)]
@@ -22,6 +21,12 @@ pub struct SmbiosEntryPoint {
     _table_address: u32,
     _num_structs: u16,
     _bcd_revision: u8,
+}
+
+impl Magic<4> for SmbiosEntryPoint {
+    fn magic(&self) -> [u8; 4] {
+        self.anchor
+    }
 }
 
 impl Checksum for SmbiosEntryPoint {}
@@ -54,7 +59,7 @@ impl SmbiosEntryPoint {
         };
 
         // Panic if signature is invalid
-        if !smbios.valid_signature() {
+        if smbios.magic() != Self::valid_magic() {
             return Err(ParseError::InvalidSignature);
         }
 
@@ -74,21 +79,8 @@ impl SmbiosEntryPoint {
         Ok(smbios)
     }
 
-    /// Returns the 4 byte signature of the SMBIOS header.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the signature is not valid UTF-8.
-    pub fn signature(&self) -> Result<&str, ()> {
-        str::from_utf8(&self.anchor).map_err(|_| ())
-    }
-
-    /// Returns true if the SMBIOS signature is valid.
-    pub fn valid_signature(&self) -> bool {
-        if let Ok(signature) = self.signature() {
-            signature == "_SM_"
-        } else {
-            false
-        }
+    pub fn valid_magic() -> [u8; 4] {
+        // "_SM_"
+        [0x5F, 0x53, 0x4D, 0x5F]
     }
 }

@@ -2,7 +2,7 @@ use core::{mem, ptr, slice, str};
 use log::debug;
 use uefi::table::cfg::{self, ConfigTableEntry};
 
-use crate::utils::{self, Checksum, ParseError};
+use crate::utils::{self, Checksum, Magic, ParseError};
 
 /// The RSDP struct that points to ACPI tables.
 #[repr(packed)]
@@ -15,27 +15,20 @@ pub struct RootDescriptionPointer {
     rsdt_addr: u32,
 }
 
-impl RootDescriptionPointer {
-    /// Returns the 8 byte signature of the RSDP.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the signature is not valid UTF-8.
-    pub fn signature(&self) -> Result<&str, ParseError> {
-        str::from_utf8(&self.signature).map_err(|_| ParseError::InvalidSignature)
-    }
-
-    /// Returns true if the RSDP signature is valid.
-    pub fn valid_signature(&self) -> bool {
-        if let Ok(signature) = self.signature() {
-            signature == "RSD PTR "
-        } else {
-            false
-        }
+impl Magic<8> for RootDescriptionPointer {
+    fn magic(&self) -> [u8; 8] {
+        self.signature
     }
 }
 
 impl Checksum for RootDescriptionPointer {}
+
+impl RootDescriptionPointer {
+    fn valid_magic() -> [u8; 8] {
+        // "RSD PTR "
+        [0x52, 0x53, 0x44, 0x20, 0x50, 0x54, 0x52, 0x20]
+    }
+}
 
 /// The RSDP struct that points to ACPI table with a valid XSDT.
 ///
@@ -100,7 +93,7 @@ impl AcpiSystemDescriptionTable {
         };
 
         // Return error if signature is invalid
-        if !rsdp.valid_signature() {
+        if rsdp.magic() != RootDescriptionPointer::valid_magic() {
             return Err(ParseError::InvalidSignature);
         }
 
@@ -147,13 +140,8 @@ impl AcpiSystemDescriptionTable {
                 .ok_or(ParseError::InvalidPointer)?
         };
 
-        // Return error if signature is valid
-        let signature = table_header
-            .signature()
-            .map_err(|_| ParseError::InvalidSignature)?;
-
-        // Return error if signature does not match
-        if !matches!(signature, "RSDT" | "XSDT") {
+        // Return error if signature does not match "RSDT" or "XSDT"
+        if !matches!(table_header.magic(), RSDT_MAGIC | XSDT_MAGIC) {
             return Err(ParseError::InvalidSignature);
         }
 
@@ -182,12 +170,17 @@ impl AcpiSystemDescriptionTable {
 
         debug!(
             "Found {} of size 0x{:x} at 0x{:x}",
-            signature, table_size, addr as usize
+            str::from_utf8(&table_header.magic()).unwrap(),
+            table_size,
+            addr as usize
         );
 
         Ok(table)
     }
 }
+
+const RSDT_MAGIC: [u8; 4] = [0x52, 0x53, 0x44, 0x54];
+const XSDT_MAGIC: [u8; 4] = [0x58, 0x53, 0x44, 0x54];
 
 /// A header for an ACPI table.
 #[repr(packed)]
@@ -203,14 +196,9 @@ pub struct DescriptionHeader {
     _creator_revision: u32,
 }
 
-impl DescriptionHeader {
-    /// Returns the 4 byte signature of the ACPI header.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the signature is not valid UTF-8.
-    pub fn signature(&self) -> Result<&str, ()> {
-        str::from_utf8(&self.signature).map_err(|_| ())
+impl Magic<4> for DescriptionHeader {
+    fn magic(&self) -> [u8; 4] {
+        self.signature
     }
 }
 

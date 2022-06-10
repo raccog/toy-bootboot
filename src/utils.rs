@@ -8,7 +8,7 @@ pub enum ParseError {
     NoTable,
 }
 
-/// A sized struct that can use a checksum to see if data is valid.
+/// A type that implements a checksum.
 pub trait Checksum {
     /// Gets the sum of every byte that composes this struct and returns the least significant
     /// byte.
@@ -39,4 +39,12 @@ pub fn checksum(data: &[u8]) -> u8 {
     }
 
     sum.0
+}
+
+/// Trait for types with magic numbers.
+///
+/// Magic numbers are also called signatures or anchors.
+pub trait Magic<const SIZE: usize> {
+    /// Returns this instance's magic numbers.
+    fn magic(&self) -> [u8; SIZE];
 }
