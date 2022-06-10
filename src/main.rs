@@ -52,7 +52,7 @@ mod time;
 mod utils;
 
 pub use acpi::AcpiSystemDescriptionTable;
-pub use elf::{Elf64Header, ElfParseError};
+pub use elf::{ElfHeader64, ElfParseError};
 pub use environment::Environment;
 pub use framebuffer::Framebuffer;
 pub use fs::{open_dir, open_file, read_to_string, read_to_vec};
@@ -168,7 +168,7 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
         .read_file(&env.kernel)
         .unwrap_or_else(|| panic!("Could not read kernel at file: {}", env.kernel));
     // Panic if too small
-    if kernel.len() < mem::size_of::<Elf64Header>() {
+    if kernel.len() < mem::size_of::<ElfHeader64>() {
         panic!("Kernel of size {} bytes is too small", kernel.len());
     }
     debug!(
@@ -178,14 +178,30 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     );
 
     // Get ELF64 header
-    let elf_header = Elf64Header::new(kernel[..mem::size_of::<Elf64Header>()].try_into().unwrap());
+    let elf_header = ElfHeader64::new(kernel[..mem::size_of::<ElfHeader64>()].try_into().unwrap());
     if let Err(parse_error) = elf_header {
         panic!("Error while parsing Elf header: {:?}", parse_error);
     }
     let elf_header = elf_header.unwrap();
     debug!("Entry: 0x{:x}", elf_header.entry);
     debug!("PH Offset: 0x{:x}", elf_header.ph_offset);
+    debug!("PH Entries: {}", elf_header.ph_num);
+    debug!("PH Size: {} bytes", elf_header.ph_entry_size);
     debug!("SH Offset: 0x{:x}", elf_header.sh_offset);
+    debug!("SH Entries: {}", elf_header.sh_num);
+    debug!("SH Size: {} bytes", elf_header.sh_entry_size);
+    debug!("SH Str Index: {}", elf_header.sh_string_index);
+
+    // Get section and program headers
+    let (section_headers, program_headers) = elf_header
+        .get_headers(kernel)
+        .unwrap_or_else(|e| panic!("Encountered error while parsing ELF file headers: {:?}", e));
+    for sh in section_headers.iter() {
+        debug!("Section: {:?}", sh);
+    }
+    for ph in program_headers.iter() {
+        debug!("Program: {:?}", ph);
+    }
 
     // Get memory map from UEFI
     let mmap_size = bt.memory_map_size();

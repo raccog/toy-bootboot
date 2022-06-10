@@ -1,4 +1,4 @@
-use core::mem;
+use core::{mem, slice};
 
 /// An error resulting from parsing an ELF file.
 #[derive(Copy, Clone, Debug)]
@@ -7,10 +7,12 @@ pub enum ElfParseError {
     InvalidFileType,
     InvalidIsa,
     InvalidMagic,
+    InvalidOffset,
     InvalidSize,
     InvalidVersion,
     Not64Bit,
     NotLittleEndian,
+    TooManyHeaders,
 }
 
 const ELF_HEADER_NIDENT: usize = 16;
@@ -29,7 +31,7 @@ const X86_64_ISA: u16 = 0x3e;
 /// The header for an ELF64 file.
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-pub struct Elf64Header {
+pub struct ElfHeader64 {
     ident: [u8; ELF_HEADER_NIDENT],
     file_type: u16,
     isa: u16,
@@ -39,31 +41,76 @@ pub struct Elf64Header {
     pub sh_offset: u64,
     _flags: u32,
     header_size: u16,
-    _ph_entry_size: u16,
-    _ph_num: u16,
-    _sh_entry_size: u16,
-    _sh_num: u16,
-    _sh_string_index: u16,
+    pub ph_entry_size: u16,
+    pub ph_num: u16,
+    pub sh_entry_size: u16,
+    pub sh_num: u16,
+    pub sh_string_index: u16,
 }
 
-impl Elf64Header {
+impl ElfHeader64 {
     /// Returns the class of this ELF64 header (32/64 bits).
     ///
-    /// After being parsed in [`Elf64Header::new`], this header is guarenteed to be 64bits.
+    /// After being parsed in [`ElfHeader64::new`], this header is guarenteed to be 64bits.
     pub fn class(&self) -> u8 {
         self.ident[4]
     }
 
     /// Returns the byte format of this ELF64 header (little/big endian).
     ///
-    /// After being parsed in [`Elf64Header::new`], this header is guarenteed to be little endian.
+    /// After being parsed in [`ElfHeader64::new`], this header is guarenteed to be little endian.
     pub fn data(&self) -> u8 {
         self.ident[5]
     }
 
+    /// Returns every section and program header in this ELF file.
+    ///
+    /// # Errors
+    ///
+    /// * `ElfParseError::TooManyHeaders`: Specified headers do not fit in `data`
+    /// * `ElfParseError::InvalidSize`: Section/program header specified size does not match struct
+    /// size
+    /// * `ElfParseError::InvalidOffset`: Section/program header offset goes past `data` end
+    pub fn get_headers(
+        &self,
+        data: &[u8],
+    ) -> Result<(&[ElfSectionHeader64], &[ElfProgramHeader64]), ElfParseError> {
+        // Get size of all headers
+        let ph_size = self.ph_num as usize * self.ph_entry_size as usize;
+        let sh_size = self.sh_num as usize * self.sh_entry_size as usize;
+        let headers_size = mem::size_of::<ElfHeader64>() + ph_size + sh_size;
+        if headers_size > data.len() {
+            return Err(ElfParseError::TooManyHeaders);
+        }
+        // Ensure entry sizes match header sizes
+        if self.ph_entry_size as usize != mem::size_of::<ElfProgramHeader64>()
+            || self.sh_entry_size as usize != mem::size_of::<ElfSectionHeader64>()
+        {
+            return Err(ElfParseError::InvalidSize);
+        }
+        // Ensure offsets point to valid headers
+        if self.sh_offset as usize >= data.len() || self.ph_offset as usize >= data.len() {
+            return Err(ElfParseError::InvalidOffset);
+        }
+        // Get slices of section and program headers
+        let section_headers = unsafe {
+            slice::from_raw_parts(
+                &data[self.sh_offset as usize] as *const u8 as *const ElfSectionHeader64,
+                self.sh_num as usize,
+            )
+        };
+        let program_headers = unsafe {
+            slice::from_raw_parts(
+                &data[self.ph_offset as usize] as *const u8 as *const ElfProgramHeader64,
+                self.ph_num as usize,
+            )
+        };
+        Ok((section_headers, program_headers))
+    }
+
     /// Returns the version number in the identification part of the header.
     ///
-    /// After being parsed in [`Elf64Header::new`], this version is guarenteed to be 1.
+    /// After being parsed in [`ElfHeader64::new`], this version is guarenteed to be 1.
     pub fn ident_version(&self) -> u8 {
         self.ident[6]
     }
@@ -126,7 +173,7 @@ impl Elf64Header {
 
     /// Returns the ABI used in this ELF64 header.
     ///
-    /// After being parsed in [`Elf64Header::new`], this header is guarenteed to use SystemV ABI.
+    /// After being parsed in [`ElfHeader64::new`], this header is guarenteed to use SystemV ABI.
     pub fn os_abi(&self) -> u8 {
         self.ident[7]
     }
@@ -135,4 +182,34 @@ impl Elf64Header {
     pub fn valid_magic() -> [u8; 4] {
         [0x7f, 0x45, 0x4c, 0x46]
     }
+}
+
+/// An ELF64 section header.
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct ElfSectionHeader64 {
+    name_idx: u32,
+    section_type: u32,
+    flags: u64,
+    addr: u64,
+    offset: u64,
+    size: u64,
+    link: u32,
+    info: u32,
+    addr_align: u64,
+    entry_size: u64,
+}
+
+/// An ELF64 program header.
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct ElfProgramHeader64 {
+    program_type: u32,
+    flags: u32,
+    offset: u64,
+    vaddr: u64,
+    paddr: u64,
+    file_size: u64,
+    mem_size: u64,
+    align: u64,
 }
