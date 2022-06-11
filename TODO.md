@@ -1,34 +1,19 @@
 # Todo List for Project
 
-## Immediate
+## Immediate Steps
 
-### Multiprocessor Initialization
-
-* Get multiprocessor services from ACPI table
-* Start kernel on core 0
-* Start trampoline on each extra core
-
-### Parse Kernel ELF File
-
-* Get kernel from initrd
-* Parse kernel ELF header
-* Copy kernel into mapped memory
-
-### Memory Mapping
-
-* Setup initial page tables
-
-## Initializing Hardware
-
-NOTE: This order may not be the order of execution when implemented.
-
-- [x] Framebuffer
-- [ ] Multiprocessors
-- [x] Timestamp and timezone
-- [x] Get ACPI table
-- [x] Get SMBIOS table
-- [ ] Map memory
-- [ ] Init BSS and stack
+* Parse ACPI tables for MADT
+* Parse MADT for local APICs
+* Create page tables
+* Form memory map
+* Framebuffer status report
+* Exit boot services
+* Disable PIC/NMI
+* Copy trampoline program
+* Enable local APIC
+* Initialize all cores
+* Clear framebuffer
+* Release spinlock; allowing all cores to start running
 
 ## Future
 

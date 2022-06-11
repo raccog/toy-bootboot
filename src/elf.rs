@@ -38,9 +38,9 @@ pub struct ElfHeader64 {
     file_type: u16,
     isa: u16,
     version: u32,
-    pub entry: u64,
-    pub ph_offset: u64,
-    pub sh_offset: u64,
+    pub entry: usize,
+    pub ph_offset: usize,
+    pub sh_offset: usize,
     _flags: u32,
     header_size: u16,
     pub ph_entry_size: u16,
@@ -188,32 +188,94 @@ impl Magic<4> for ElfHeader64 {
     }
 }
 
+pub const ELF_SH_TYPE_SYMTAB: u32 = 2;
+pub const ELF_SH_TYPE_STRTAB: u32 = 3;
+
 /// An ELF64 section header.
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct ElfSectionHeader64 {
-    name_idx: u32,
-    section_type: u32,
-    flags: u64,
-    addr: u64,
-    offset: u64,
-    size: u64,
+    pub name_idx: u32,
+    pub section_type: u32,
+    flags: usize,
+    addr: usize,
+    pub offset: usize,
+    pub size: usize,
     link: u32,
     info: u32,
-    addr_align: u64,
-    entry_size: u64,
+    addr_align: usize,
+    pub entry_size: usize,
 }
+
+impl ElfSectionHeader64 {
+    /// Returns the first section in `section_table` with a name matching `section_name` and a
+    /// section type matching `section_type`.
+    ///
+    /// Returns `None` if no section with `section_name` exists.
+    ///
+    /// The `section_name` is found in the `str_table`.
+    pub fn find_section<'a>(
+        section_headers: &'a [Self],
+        section_name: &[u8],
+        section_type: u32,
+        str_table: &[u8],
+    ) -> Option<&'a Self> {
+        section_headers.iter().find(|sh| {
+            let name_idx = sh.name_idx as usize;
+            if name_idx + section_name.len() > str_table.len() {
+                return false;
+            }
+            &str_table[name_idx..name_idx + section_name.len()] == section_name
+                && sh.section_type == section_type
+        })
+    }
+}
+
+pub const ELF_PH_TYPE_LOAD: u32 = 1;
 
 /// An ELF64 program header.
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct ElfProgramHeader64 {
-    program_type: u32,
+    pub program_type: u32,
     flags: u32,
-    offset: u64,
-    vaddr: u64,
-    paddr: u64,
-    file_size: u64,
-    mem_size: u64,
-    align: u64,
+    pub offset: usize,
+    vaddr: usize,
+    paddr: usize,
+    pub file_size: usize,
+    pub mem_size: usize,
+    align: usize,
+}
+
+/// And ELF64 symbol
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct ElfSymbol64 {
+    pub name_idx: u32,
+    info: u8,
+    other: u8,
+    sh_index: u16,
+    pub value: usize,
+    size: u64,
+}
+
+impl ElfSymbol64 {
+    /// Returns the first symbol in `symbol_table` with a name matching `symbol_name`.
+    ///
+    /// Returns `None` if no symbol with `symbol_name` exists.
+    ///
+    /// The `symbol_name` is found in the `symbol_str_table`.
+    pub fn find_symbol<'a>(
+        symbol_table: &'a [Self],
+        symbol_name: &[u8],
+        symbol_str_table: &[u8],
+    ) -> Option<&'a Self> {
+        symbol_table.iter().find(|symbol| {
+            let name_idx = symbol.name_idx as usize;
+            if name_idx + symbol_name.len() > symbol_str_table.len() {
+                return false;
+            }
+            &symbol_str_table[name_idx..name_idx + symbol_name.len()] == symbol_name
+        })
+    }
 }
