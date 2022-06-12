@@ -5,7 +5,9 @@ pub enum ParseError {
     FailedChecksum,
     InvalidPointer,
     InvalidSignature,
+    InvalidSize,
     NoTable,
+    TooLarge,
 }
 
 /// A type that implements a checksum.
@@ -46,5 +48,5 @@ pub fn checksum(data: &[u8]) -> u8 {
 /// Magic numbers are also called signatures or anchors.
 pub trait Magic<const SIZE: usize> {
     /// Returns this instance's magic numbers.
-    fn magic(&self) -> [u8; SIZE];
+    fn magic(&self) -> &[u8; SIZE];
 }

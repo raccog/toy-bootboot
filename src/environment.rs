@@ -6,18 +6,13 @@ use uefi::{
     Error as UefiError, Result as UefiResult,
 };
 
+use crate::utils::ParseError;
 use crate::{open_file, read_to_string, Initrd};
 
 // Since length does not include null terminator, max length is 4KiB - 1 or 4095 bytes
 const ENVIRONMENT_MAX_SIZE: usize = 4095;
 const SCREEN_MIN_WIDTH: usize = 640;
 const SCREEN_MIN_HEIGHT: usize = 480;
-
-/// An error that occurred while parsing a config file.
-#[derive(Clone, Copy, Debug)]
-pub enum ParseError {
-    TooLarge,
-}
 
 /// Bootboot environment.
 ///

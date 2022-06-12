@@ -4,7 +4,7 @@ use uefi::table::cfg::{self, ConfigTableEntry};
 use crate::utils::{Checksum, Magic, ParseError};
 
 /// SMBIOS entry point struct.
-#[repr(packed)]
+#[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct SmbiosEntryPoint {
     anchor: [u8; 4],
@@ -24,8 +24,8 @@ pub struct SmbiosEntryPoint {
 }
 
 impl Magic<4> for SmbiosEntryPoint {
-    fn magic(&self) -> [u8; 4] {
-        self.anchor
+    fn magic(&self) -> &[u8; 4] {
+        &self.anchor
     }
 }
 
@@ -58,12 +58,12 @@ impl SmbiosEntryPoint {
                 .ok_or(ParseError::InvalidPointer)?
         };
 
-        // Panic if signature is invalid
+        // Return error if signature is invalid
         if smbios.magic() != Self::valid_magic() {
             return Err(ParseError::InvalidSignature);
         }
 
-        // Panic if checksum failed
+        // Return error if checksum failed
         if !smbios.checksum_valid() {
             return Err(ParseError::FailedChecksum);
         }
@@ -79,8 +79,7 @@ impl SmbiosEntryPoint {
         Ok(smbios)
     }
 
-    pub fn valid_magic() -> [u8; 4] {
-        // "_SM_"
-        [0x5F, 0x53, 0x4D, 0x5F]
+    pub fn valid_magic() -> &'static [u8; 4] {
+        b"_SM_"
     }
 }

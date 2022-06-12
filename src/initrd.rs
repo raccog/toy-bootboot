@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use log::debug;
 use uefi::{
-    proto::media::file::{Directory, File, FileAttribute, FileMode, RegularFile},
+    proto::media::file::{Directory, FileAttribute, FileMode, RegularFile},
     Result as UefiResult,
 };
 
@@ -34,12 +34,8 @@ impl Initrd {
 
         // Read initrd
         let initrd_raw = read_to_vec(&mut initrd_file)?;
-        let initrd = Self { initrd_raw };
 
-        // Close initrd file
-        initrd_file.close();
-
-        Ok(initrd)
+        Ok(Self { initrd_raw })
     }
 
     /// Tries to read `filename` from initrd using various file system types.

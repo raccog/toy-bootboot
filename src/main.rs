@@ -118,7 +118,7 @@ fn load_elf<'a>(
     // Ensure program header is valid
     if ph_load.offset + ph_load.file_size > kernel.len() {
         panic!(
-            "Kernel: File size {}B with offset 0x{:x} is too small to load executable of size {}B",
+            "Kernel: File size {} bytes with offset 0x{:x} is too small to load executable of size {} bytes",
             kernel.len(),
             ph_load.offset,
             ph_load.file_size
@@ -196,6 +196,11 @@ fn load_elf<'a>(
     let initstack_symbol_name = b"initstack";
     let initstack_symbol =
         ElfSymbol64::find_symbol(symbol_table, &initstack_symbol_name[..], symbol_str_table);
+
+    debug!(
+        "Found ELF executable of size: {} KiB",
+        kernel_load.len() / 1024
+    );
     if let Some(bootboot) = bootboot_symbol {
         debug!("Symbol BOOTBOOT: 0x{:x}", bootboot.value);
     }
@@ -233,39 +238,22 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
     let bt = st.boot_services();
 
     // Get root directory of ESP
-    // Panic if failed
     const ESP_ERR: &str = "No boot partition";
     let fs = bt.get_image_file_system(image_handle).expect(ESP_ERR);
     let fs = unsafe { &mut *fs.interface.get() };
     let mut root = fs.open_volume().expect(ESP_ERR);
 
     // Check for BOOTBOOT directory
-    // Panic if not found
     let mut bootdir = open_dir(&mut root, "BOOTBOOT").expect(ESP_ERR);
 
-    //------------------------
-    // Step 1:
-    // Read initrd file to memory
-    //------------------------
-
-    // Panic if initrd could not be found
+    // Read initrd file into memory
     let initrd = Initrd::from_disk(&mut bootdir).expect("Could not read initrd from disk");
     debug!("Found initrd of size: {} KiB", initrd.size() / 1024);
-
-    //-----------------------------
-    // Step 2:
-    // Read/Create BOOTBOOT environment
-    //-----------------------------
 
     let env = Environment::get_env(&mut bootdir, &initrd);
     debug!("Kernel name: {}", env.kernel);
     debug!("SMP: {}", !env.no_smp);
     debug!("Target resolution: {:?}", env.screen);
-
-    //----------------------
-    // Step 4:
-    // Initialize Hardware
-    //----------------------
 
     // Get linear framebuffer
     let framebuffer =
@@ -293,9 +281,9 @@ pub fn main(image_handle: Handle, mut st: SystemTable<Boot>) -> Status {
         panic!("Kernel of size {} bytes is too small", kernel.len());
     }
     debug!(
-        "Found kernel at file {} of size {} bytes",
+        "Found kernel at file {} of size {} KiB",
         env.kernel,
-        kernel.len()
+        kernel.len() / 1024
     );
 
     // Get ELF64 header

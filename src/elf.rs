@@ -176,15 +176,14 @@ impl ElfHeader64 {
     }
 
     /// Returns the valid ELF magic numbers.
-    fn valid_magic() -> [u8; 4] {
-        // 0x7f "ELF"
-        [0x7f, 0x45, 0x4c, 0x46]
+    fn valid_magic() -> &'static [u8; 4] {
+        b"\x7fELF"
     }
 }
 
 impl Magic<4> for ElfHeader64 {
-    fn magic(&self) -> [u8; 4] {
-        self.ident[..4].try_into().unwrap()
+    fn magic(&self) -> &[u8; 4] {
+        (&self.ident[..4]).try_into().unwrap()
     }
 }
 

@@ -62,12 +62,6 @@ impl Framebuffer {
     ) -> UefiResult<Self> {
         // Get GOP mode
         let gop_info = get_gop_info(bt, target_resolution)?;
-        debug!(
-            "Selected mode: resolution={:?}, stride={}, format={:?}",
-            gop_info.resolution(),
-            gop_info.stride(),
-            gop_info.pixel_format()
-        );
 
         // Get GOP (graphics output protocol)
         let gop = unsafe { &mut *bt.locate_protocol::<GraphicsOutput>()?.get() };

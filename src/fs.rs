@@ -5,21 +5,23 @@ use uefi::{
     CString16, Error as UefiError, Result as UefiResult,
 };
 
-/// Opens a subdirectory in the `root` directory.
+/// Opens a subdirectory with `dirname` in the `root` directory.
 pub fn open_dir(root: &mut Directory, dirname: &str) -> UefiResult<Directory> {
-    let dirname = CString16::try_from(dirname).unwrap();
+    let dirname =
+        CString16::try_from(dirname).map_err(|_| UefiError::from(Status::INVALID_PARAMETER))?;
     root.open(&dirname, FileMode::Read, FileAttribute::DIRECTORY)
-        .map(|dir| unsafe { Directory::new(dir) })
+        .map(|handle| unsafe { Directory::new(handle) })
 }
 
-/// Opens a file in the `root` directory.
+/// Opens a file with `filename` in the `root` directory.
 pub fn open_file(
     root: &mut Directory,
     filename: &str,
     mode: FileMode,
     attribute: FileAttribute,
 ) -> UefiResult<RegularFile> {
-    let filename = CString16::try_from(filename).unwrap();
+    let filename =
+        CString16::try_from(filename).map_err(|_| UefiError::from(Status::INVALID_PARAMETER))?;
     root.open(&filename, mode, attribute)
         .map(|file| unsafe { RegularFile::new(file) })
 }

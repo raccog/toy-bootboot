@@ -5,7 +5,7 @@ use uefi::table::cfg::{self, ConfigTableEntry};
 use crate::utils::{self, Checksum, Magic, ParseError};
 
 /// The RSDP struct that points to ACPI tables.
-#[repr(packed)]
+#[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct RootDescriptionPointer {
     signature: [u8; 8],
@@ -16,24 +16,23 @@ pub struct RootDescriptionPointer {
 }
 
 impl Magic<8> for RootDescriptionPointer {
-    fn magic(&self) -> [u8; 8] {
-        self.signature
+    fn magic(&self) -> &[u8; 8] {
+        &self.signature
     }
 }
 
 impl Checksum for RootDescriptionPointer {}
 
 impl RootDescriptionPointer {
-    fn valid_magic() -> [u8; 8] {
-        // "RSD PTR "
-        [0x52, 0x53, 0x44, 0x20, 0x50, 0x54, 0x52, 0x20]
+    fn valid_magic() -> &'static [u8; 8] {
+        b"RSD PTR "
     }
 }
 
 /// The RSDP struct that points to ACPI table with a valid XSDT.
 ///
 /// This struct is used when the ACPI revision >= 2.
-#[repr(packed)]
+#[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct ExtendedDescriptionPointer {
     _rsdp: RootDescriptionPointer,
@@ -48,7 +47,7 @@ impl Checksum for ExtendedDescriptionPointer {}
 /// An ACPI table (XSDT or RSDT), including header and entries.
 ///
 /// As this table has a variable number of entries, it is not `Sized`.
-#[repr(packed)]
+#[repr(C)]
 pub struct AcpiSystemDescriptionTable {
     header: DescriptionHeader,
     entries: [u8],
@@ -78,6 +77,7 @@ impl AcpiSystemDescriptionTable {
     /// * `ParseError::FailedChecksum`: RSDP or XSDT/RSDT checksum failed
     /// * `ParseError::InvalidSignature`: RSDP or XSDT/RSDT signature is invalid
     /// * `ParseError::InvalidPointer`: A null pointer was found during parse
+    /// * `ParseError::InvalidSize`: The XSDT/RSDT table size is invalid
     pub fn from_uefi_config_table(config_table: &[ConfigTableEntry]) -> Result<&Self, ParseError> {
         // Get RSDP from UEFI config table
         let acpi_table = get_acpi_table(config_table)?;
@@ -85,7 +85,6 @@ impl AcpiSystemDescriptionTable {
 
         // Convert to RSDP struct
         // May not be valid
-        // Return error if RSDP is null pointer
         let rsdp = unsafe {
             (addr as *const RootDescriptionPointer)
                 .as_ref()
@@ -97,7 +96,7 @@ impl AcpiSystemDescriptionTable {
             return Err(ParseError::InvalidSignature);
         }
 
-        // Panic if checksum failed
+        // Return error if checksum failed
         if !rsdp.checksum_valid() {
             return Err(ParseError::FailedChecksum);
         }
@@ -141,7 +140,7 @@ impl AcpiSystemDescriptionTable {
         };
 
         // Return error if signature does not match "RSDT" or "XSDT"
-        if !matches!(table_header.magic(), RSDT_MAGIC | XSDT_MAGIC) {
+        if !matches!(table_header.magic(), &RSDT_MAGIC | &XSDT_MAGIC) {
             return Err(ParseError::InvalidSignature);
         }
 
@@ -150,6 +149,9 @@ impl AcpiSystemDescriptionTable {
 
         // Convert to table struct
         // It may or may not be valid
+        if table_size < mem::size_of::<DescriptionHeader>() {
+            return Err(ParseError::InvalidSize);
+        }
         let table = unsafe {
             ptr::from_raw_parts::<Self>(
                 table_addr as *const (),
@@ -170,7 +172,7 @@ impl AcpiSystemDescriptionTable {
 
         debug!(
             "Found {} of size 0x{:x} at 0x{:x}",
-            str::from_utf8(&table_header.magic()).unwrap(),
+            str::from_utf8(table_header.magic()).unwrap(),
             table_size,
             addr as usize
         );
@@ -183,7 +185,7 @@ const RSDT_MAGIC: [u8; 4] = [0x52, 0x53, 0x44, 0x54];
 const XSDT_MAGIC: [u8; 4] = [0x58, 0x53, 0x44, 0x54];
 
 /// A header for an ACPI table.
-#[repr(packed)]
+#[repr(C)]
 pub struct DescriptionHeader {
     signature: [u8; 4],
     length: u32,
@@ -197,8 +199,8 @@ pub struct DescriptionHeader {
 }
 
 impl Magic<4> for DescriptionHeader {
-    fn magic(&self) -> [u8; 4] {
-        self.signature
+    fn magic(&self) -> &[u8; 4] {
+        &self.signature
     }
 }
 
